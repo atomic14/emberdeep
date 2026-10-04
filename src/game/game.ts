@@ -195,6 +195,7 @@ export class Game {
     const run = this.run, L = this.level, cs = this.cs; if (!run || !L || !cs || this.presenter.busy) return;
     if (cs.phase === 'lost') return;
     const seed = (run.seed * 31 + run.hour * 101 + run.floor * 7) % 2147483647;
+    saveRun(run);
     saveFloor({ hour: run.hour, floor: run.floor, seed, level: L, cs: { phase: cs.phase === 'enemy' ? 'player' : cs.phase, turn: cs.turn, aware: [...cs.aware], lanternRadius: cs.lanternRadius }, leaderId: this.leaderId, nextId: currentId(), shrineHour: run.shrineHour });
   }
 
@@ -695,6 +696,8 @@ export class Game {
       this.hud.log('A stair opens where the Keeper stood.', 'story');
     }
     const party = living(L, 'party'); if (!party.length) return;
+    for (const u of party) u.hp = Math.min(u.maxHp, u.hp + 2);
+    this.hud.log('You bind what you can: everyone recovers 2.', 'story'); this.refreshHud();
     const rng = new Rng(run.seed + run.turnsTaken * 13 + run.hour * 7);
     const count = 3 + (this.meta.upgrades['boons'] ?? 0);
     // each offered boon is pre-assigned to a Lamplighter

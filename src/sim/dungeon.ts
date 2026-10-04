@@ -188,17 +188,18 @@ export function generateFloor(o: GenOptions): Level {
   for (const r of l.rooms) {
     if (r.role !== 'combat' && !(r.role === 'stairs' && rng.chance(0.6)) && !(r.role === 'treasure' && rng.chance(0.4))) continue;
     let budget = budgetBase + rng.int(-2, 2);
+    const cap = 3 + o.hour + (r.role === 'stairs' ? 1 : 0); let placed = 0;
     const spots = rng.shuffle(roomFloorTiles(l, r, (t, p) => (t.kind === 'stone' || t.kind === 'water' || t.kind === 'oil') && !t.prop && !unitAt(l, p)));
     const table = SPAWN_TABLES[o.hour];
     let guard = 0;
-    while (budget > 0 && spots.length && guard++ < 20) {
+    while (budget > 0 && spots.length && guard++ < 20 && placed < cap) {
       const pick = rng.weighted(table.map(e => ({ item: e.id, w: e.w })));
       const def = ENEMY_DEFS[pick]; if (!def) break;
       if ((def.threat ?? 1) > budget + 1) continue;
       let p = spots.pop()!;
       if (def.id === 'drowned') { const w = spots.findIndex(s => tileAt(l, s)!.kind === 'water'); if (w >= 0) { p = spots.splice(w, 1)[0]; } }
       const count = def.flags?.includes('swarm') ? rng.int(2, 3) : 1;
-      for (let c = 0; c < count; c++) { const q = c === 0 ? p : spots.pop(); if (!q) break; l.units.push(makeUnit(def, q)); }
+      for (let c = 0; c < count; c++) { const q = c === 0 ? p : spots.pop(); if (!q) break; l.units.push(makeUnit(def, q)); placed++; }
       budget -= (def.threat ?? 1) * count;
     }
   }

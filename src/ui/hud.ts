@@ -1,6 +1,7 @@
 /** In-run HUD: party portraits, hotbar, Hold button, banners, log and tooltip. Plain DOM. */
 import type { Unit, Phase } from '../sim/types';
 import { ABILITIES } from '../content/abilities';
+import { BOONS } from '../content/boons';
 
 export class Tooltip {
   el: HTMLDivElement;
@@ -75,7 +76,7 @@ export class Hud {
         <div class="stats"><span>⛨ <b>${arm}</b></span><span>⚔ <b>${u.def.attack + (u.mods['attack'] ?? 0)}</b></span><span>👣 <b>${phase === 'player' ? u.moveLeft : u.move + (u.mods['move'] ?? 0)}</b></span></div>
         ${phase === 'player' && u.alive ? `<div class="acted">${u.acted ? 'DONE' : canUndo(u) ? '<u>undo move</u>' : ''}</div>` : ''}`;
       d.onclick = (ev) => { const t = ev.target as HTMLElement; if (t.tagName === 'U') { this.onUndo?.(u.id); return; } this.onSelect?.(u.id); };
-      d.onmouseenter = (ev) => this.tooltip.show(`<h4>${u.name}</h4><div class="muted">${u.def.title}</div><div class="row"><span>HP</span><b>${u.hp}/${u.maxHp}</b></div><div class="row"><span>Armour</span><b>${arm}</b></div><div class="row"><span>Attack</span><b>${u.def.attack + (u.mods['attack'] ?? 0)}${u.def.attackRange > 1 ? ` (range ${u.def.attackRange})` : ''}</b></div><div class="row"><span>Move</span><b>${u.move + (u.mods['move'] ?? 0)}</b></div>${u.boons.length ? `<div class="hint">Boons: ${u.boons.join(', ')}</div>` : ''}`, ev.clientX, ev.clientY);
+      d.onmouseenter = (ev) => this.tooltip.show(`<h4>${u.name}</h4><div class="muted">${u.def.title}</div><div class="row"><span>HP</span><b>${u.hp}/${u.maxHp}</b></div><div class="row"><span>Armour</span><b>${arm}</b></div><div class="row"><span>Attack</span><b>${u.def.attack + (u.mods['attack'] ?? 0)}${u.def.attackRange > 1 ? ` (range ${u.def.attackRange})` : ''}</b></div><div class="row"><span>Move</span><b>${u.move + (u.mods['move'] ?? 0)}</b></div>${u.boons.length ? `<div class="hint">Boons: ${u.boons.map(b => BOONS.find(x => x.id === b)?.name ?? b).join(', ')}</div>` : ''}`, ev.clientX, ev.clientY);
       d.onmouseleave = () => this.tooltip.hide();
       this.party.appendChild(d);
     }

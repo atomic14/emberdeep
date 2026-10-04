@@ -424,25 +424,45 @@ function spawnSpots(l: Level, centre: Vec2, r: number): Vec2[] {
 
 // ---------------------------------------------------------------- exploration movement
 
+/** Move followers toward the leader. Followers that have fallen behind take extra steps so the Lantern never splits. */
+export function followStep(l: Level, leader: Unit, ev: Ev, vacated?: Vec2, extra = true): boolean {
+  let moved = false;
+  const followers = living(l, 'party').filter(u => u !== leader).sort((a, b) => cheb(a.pos, leader.pos) - cheb(b.pos, leader.pos));
+  let target = vacated;
+  for (const f of followers) {
+    const dist = cheb(f.pos, leader.pos);
+    if (dist <= 1) { continue; }
+    const steps = extra ? (dist > 4 ? 3 : dist > 2 ? 2 : 1) : 1;
+    let firstVacated: Vec2 | undefined;
+    for (let i = 0; i < steps; i++) {
+      if (cheb(f.pos, leader.pos) <= 1) break;
+      // first step: prefer the tile the unit ahead just left; later steps: any tile next to the leader
+      let path = (i === 0 && target && !unitAt(l, target)) ? findPath(l, f.pos, target, { unit: f, maxCost: 40 }) : null;
+      if (!path || !path.length) path = findPath(l, f.pos, leader.pos, { unit: f, adjacent: true, maxCost: 60 });
+      if (!path || !path.length) path = findPath(l, f.pos, leader.pos, { unit: f, adjacent: true, avoidUnits: false, maxCost: 80 });
+      if (!path || !path.length) break;
+      const step = path[0];
+      if (unitAt(l, step)) break;
+      const was = { ...f.pos }; f.facing = dirTo(f.pos, step); f.pos = { ...step };
+      ev.push({ t: 'move', id: f.id, path: [step], kind: 'walk' }); moved = true;
+      if (!firstVacated) firstVacated = was;
+    }
+    if (firstVacated) target = firstVacated;
+  }
+  return moved;
+}
+
 /** Step the party one tile along a path toward dest. Returns false when finished/blocked/interrupted. */
 export function exploreStep(l: Level, cs: CombatState, leader: Unit, path: Vec2[], ev: Ev): { done: boolean; interrupted: boolean } {
   if (cs.phase !== 'explore' || !path.length) return { done: true, interrupted: false };
   const next = path[0];
   if (!walkable(l, next, leader) || unitAt(l, next) && unitAt(l, next)!.faction === 'enemy') return { done: true, interrupted: false };
-  const followers = living(l, 'party').filter(u => u !== leader);
   const prevLeader = { ...leader.pos };
   const blocker = unitAt(l, next);
   leader.facing = dirTo(leader.pos, next); leader.pos = { ...next };
   ev.push({ t: 'move', id: leader.id, path: [next], kind: 'walk' });
   if (blocker && blocker.faction === 'party') { blocker.pos = prevLeader; ev.push({ t: 'move', id: blocker.id, path: [prevLeader], kind: 'walk' }); }
-  // followers trail into the vacated tiles
-  let vacated = prevLeader;
-  for (const f of followers) {
-    if (blocker === f) break;
-    if (cheb(f.pos, leader.pos) <= 1 && !eq(f.pos, leader.pos)) { continue; }
-    const p = findPath(l, f.pos, vacated, { unit: f, allowGoalOccupied: false, maxCost: 12 });
-    if (p && p.length) { const step = p[0]; if (!unitAt(l, step)) { const was = { ...f.pos }; f.facing = dirTo(f.pos, step); f.pos = { ...step }; ev.push({ t: 'move', id: f.id, path: [step], kind: 'walk' }); vacated = was; } }
-  }
+  followStep(l, leader, ev, blocker ? undefined : prevLeader);
   for (const u of living(l, 'party')) landOn(l, u, ev);
   const room = roomAt(l, leader.pos); if (room && !room.entered) { room.entered = true; }
   refreshVisibility(l, cs);

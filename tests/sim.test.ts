@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Level, Unit } from '../src/sim/types';
 import { makeTile, tileAt } from '../src/sim/grid';
-import { makeUnit, newCombatState, startCombat, moveUnit, undoMove, basicAttack, useAbility, endPlayerTurn, resetIds, moveRange, threatTiles, attackProp, attackableProps } from '../src/sim/combat';
+import { makeUnit, newCombatState, startCombat, moveUnit, undoMove, basicAttack, useAbility, endPlayerTurn, resetIds, moveRange, threatTiles, attackProp, attackableProps, exploreStep, followStep } from '../src/sim/combat';
 import { push, igniteTile, shock, damage } from '../src/sim/rules';
 import { PARTY_DEFS, ENEMY_DEFS } from '../src/content/units';
 import { findPath } from '../src/sim/pathfind';
@@ -112,6 +112,21 @@ describe('combat flow', () => {
     endPlayerTurn(l, cs, ev); // spent aims at an adjacent party member (lowest hp): Brann 16 vs Oriel 14 -> Oriel? adjacentTarget prefers lowest hp
     const target = e.intent!.dir.y === 0 ? b : o;
     if (target === b) { useAbility(l, cs, o, 'hold', o.pos, ev); const bh = b.hp, oh = o.hp; endPlayerTurn(l, cs, ev); expect(b.hp).toBe(bh); expect(o.hp).toBeLessThan(oh); }
+  });
+});
+
+describe('exploration', () => {
+  it('followers never fall behind the leader, even through a doorway and around corners', () => {
+    const l = blank(20, 20); const cs = newCombatState(1);
+    for (let y = 1; y < 19; y++) if (y !== 10) tileAt(l, { x: 10, y })!.kind = 'wall';
+    tileAt(l, { x: 10, y: 10 })!.prop = { kind: 'door', open: true };
+    const a = makeUnit(PARTY_DEFS.knight, { x: 2, y: 2 }); const b = makeUnit(PARTY_DEFS.barbarian, { x: 2, y: 3 }); const c = makeUnit(PARTY_DEFS.mage, { x: 3, y: 2 }); l.units.push(a, b, c);
+    const path = findPath(l, a.pos, { x: 17, y: 17 }, { unit: a, avoidUnits: false })!;
+    expect(path).not.toBeNull();
+    while (path.length) { const ev: any[] = []; const r = exploreStep(l, cs, a, path, ev); if (r.done) break; }
+    for (let i = 0; i < 12; i++) { const ev: any[] = []; if (!followStep(l, a, ev)) break; }
+    expect(a.pos).toEqual({ x: 17, y: 17 });
+    expect(Math.max(...[b, c].map(u => Math.max(Math.abs(u.pos.x - a.pos.x), Math.abs(u.pos.y - a.pos.y))))).toBeLessThanOrEqual(2);
   });
 });
 

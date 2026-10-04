@@ -8,7 +8,7 @@ import { generateFloor } from '../sim/dungeon';
 import { HOUR_NAMES, KEEPER_FOR_HOUR } from '../sim/dungeon';
 import {
   newCombatState, type CombatState, startCombat, moveUnit, undoMove, canUndo, basicAttack, attackTargets, attackDamage, useAbility, abilityTargets, abilityFootprint,
-  endPlayerTurn, exploreStep, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee, attackableProps, attackProp,
+  endPlayerTurn, exploreStep, followStep, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee, attackableProps, attackProp,
 } from '../sim/combat';
 import { Rng } from '../sim/rng';
 import { PARTY_DEFS, ENEMY_DEFS } from '../content/units';
@@ -523,6 +523,13 @@ export class Game {
         if (r.done) break;
       }
       this.presenter.overlay.setPath([]);
+      // regroup: nobody is left wandering on their own
+      for (let i = 0; i < 12 && cs.phase === 'explore'; i++) {
+        const ev: SimEvent[] = []; if (!followStep(L, leader, ev)) break;
+        await this.presenter.play(ev);
+        refreshVisibility(L, cs); const seen = enemiesThatSee(L, cs);
+        if (seen.length) { const ev2: SimEvent[] = []; startCombat(L, cs, seen, ev2); await this.presenter.play(ev2); this.afterEvents(); this.frameCombat(); return; }
+      }
       if (interactAtEnd && !this.walkCancel && cs.phase === 'explore') {
         const t = tileAt(L, dest)!;
         if (t.prop && (cheb(leader.pos, dest) <= 1)) await this.useProp(dest);

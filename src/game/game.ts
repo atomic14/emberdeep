@@ -8,7 +8,7 @@ import { generateFloor } from '../sim/dungeon';
 import { HOUR_NAMES, KEEPER_FOR_HOUR } from '../sim/dungeon';
 import {
   newCombatState, type CombatState, startCombat, moveUnit, undoMove, canUndo, basicAttack, attackTargets, attackDamage, useAbility, abilityTargets, abilityFootprint,
-  endPlayerTurn, exploreStep, followStep, marchOrder, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee, attackableProps, attackProp,
+  endPlayerTurn, exploreStep, followStep, marchOrder, MARCH_RANK, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee, attackableProps, attackProp,
 } from '../sim/combat';
 import { Rng } from '../sim/rng';
 import { PARTY_DEFS, ENEMY_DEFS } from '../content/units';
@@ -268,7 +268,7 @@ export class Game {
   }
   selected(): Unit | undefined { return this.level?.units.find(u => u.id === this.selectedId && u.alive); }
   leader(): Unit | undefined { const L = this.level; if (!L) return; return L.units.find(u => u.id === this.leaderId && u.alive) ?? marchOrder(L)[0]; }
-  partyUnits() { return this.level ? this.level.units.filter(u => u.faction === 'party') : []; }
+  partyUnits() { return this.level ? this.level.units.filter(u => u.faction === 'party').sort((a, b) => (MARCH_RANK[a.def.id] ?? 2) - (MARCH_RANK[b.def.id] ?? 2)) : []; }
 
   select(id: string) {
     const u = this.level?.units.find(x => x.id === id); if (!u || !u.alive) return;
@@ -278,7 +278,7 @@ export class Game {
     this.refreshHud(); this.refreshOverlays();
   }
   cycleSelect() {
-    const alive = living(this.level!, 'party'); if (!alive.length) return;
+    const alive = this.partyUnits().filter(u => u.alive); if (!alive.length) return;
     const i = alive.findIndex(u => u.id === this.selectedId);
     const order = [...alive.slice(i + 1), ...alive.slice(0, i + 1)];
     const next = order.find(u => !u.acted) ?? order[0];

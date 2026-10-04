@@ -5,7 +5,7 @@ import { living, tileAt, unitAt, walkable, neighbours8, roomAt, inBounds } from 
 import { findPath, reachable, pathFromReach } from './pathfind';
 import { hasLos, updateVisibility, line } from './los';
 import {
-  damage, push, shock, igniteTile, extinguish, breakBarrel, breakPillar, breakDoor, openDoor, heal, landOn,
+  damage, push, shock, igniteTile, extinguish, breakBarrel, breakPillar, breakDoor, openDoor, heal, landOn, toppleBrazier,
   addStatus, removeStatus, hasStatus, isFlanked, fireTick, statusTick, ventTick, intentTiles, explode, kill, type Ev,
 } from './rules';
 import { enemyAct, reaim, straightLine } from './ai';
@@ -165,6 +165,36 @@ export function basicAttack(l: Level, cs: CombatState, u: Unit, target: Unit, ev
   damage(l, target, dmg, ev, { kind: 'hit', sourceId: u.id, cause: `${u.name}` });
   if (hasStatus(u, 'hidden')) removeStatus(u, 'hidden', ev);
   afterAction(l, cs, ev);
+  return true;
+}
+
+/** Props a unit can strike directly: barrels break (oil), braziers topple (fire). */
+export function attackableProps(l: Level, u: Unit): Vec2[] {
+  const out: Vec2[] = [];
+  const r = u.def.attackRange;
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const p = add(u.pos, { x: dx, y: dy }); if ((!dx && !dy) || !inBounds(l, p)) continue;
+    const t = tileAt(l, p)!; const pr = t.prop; if (!pr || pr.broken || !(pr.kind === 'barrel' || pr.kind === 'brazier')) continue;
+    if (!t.explored) continue;
+    if (r > 1 && !(t.visible && hasLos(l, u.pos, p))) continue;
+    out.push(p);
+  }
+  return out;
+}
+export function attackProp(l: Level, cs: CombatState, u: Unit, pos: Vec2, ev: Ev): boolean {
+  if (!u.alive || !attackableProps(l, u).some(p => eq(p, pos))) return false;
+  const combat = cs.phase === 'player';
+  if (combat && u.acted) return false;
+  const t = tileAt(l, pos)!; const pr = t.prop!;
+  u.facing = dirTo(u.pos, pos);
+  ev.push({ t: 'attack', id: u.id, targetPos: pos });
+  if (u.def.attackRange > 1) ev.push({ t: 'projectile', from: u.pos, to: pos, kind: u.def.id === 'mage' ? 'spark' : 'arrow' });
+  if (pr.kind === 'barrel') { breakBarrel(l, pos, ev); u.lastAction = 'breaking a barrel'; }
+  else { toppleBrazier(l, pos, dirTo(u.pos, pos), ev); u.lastAction = 'knocking over a brazier'; }
+  if (combat) { u.acted = true; u.movedFrom = undefined; }
+  refreshVisibility(l, cs);
+  if (cs.phase === 'explore') { const seen = enemiesThatSee(l, cs); if (seen.length) startCombat(l, cs, seen, ev, 'The noise carries.'); }
+  else afterAction(l, cs, ev);
   return true;
 }
 

@@ -211,7 +211,7 @@ export class Screens {
         <b>END TURN</b><span>Nothing happens until you press <b>End Turn</b> (bottom right, or <i>Space</i>). The button shows how many Lamplighters have acted and pulses when everyone has. You can switch on automatic turn ending in Settings.</span>
         <b>RED TILES</b><span>Where enemies will strike at the start of their turn. They decide first and commit. Step out of red, or push them so they hit something else. Pushing an enemy moves its attack with it.</span>
         <b>UNDO</b><span>Movement can be undone (right-click, Z, or the undo link) until the Lamplighter acts.</span>
-                <b>THE ROOM</b><span>Water slows and conducts lightning. Oil burns and spreads. Chasms are final. Braziers fall over. Doors shut. Pillars block sight and crumble. The thing in front of you is not the only thing in the room.</span>
+                <b>THE ROOM</b><span>Water slows and conducts lightning. Oil burns and spreads. Chasms are final. Click a barrel to break it (oil) or a brazier to knock it over (fire), even before a fight starts. Doors shut. Pillars block sight and crumble. The thing in front of you is not the only thing in the room.</span>
         <b>CAMERA</b><span>Wheel zooms. WASD or arrows pan. <i>F</i> toggles following. <i>Tab</i> cycles Lamplighters. <i>Esc</i> cancels, then opens the menu.</span>
         <b>STAIRS</b><span>At every staircase you may go deeper or <b>Ascend</b> (climb out) with the ember you carry. Ascending ends the descent as a success: the ember is banked and everyone heals. Coming back is the hard rule.</span>
       </div>

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Level, Unit } from '../src/sim/types';
 import { makeTile, tileAt } from '../src/sim/grid';
-import { makeUnit, newCombatState, startCombat, moveUnit, undoMove, basicAttack, useAbility, endPlayerTurn, resetIds, moveRange, threatTiles } from '../src/sim/combat';
+import { makeUnit, newCombatState, startCombat, moveUnit, undoMove, basicAttack, useAbility, endPlayerTurn, resetIds, moveRange, threatTiles, attackProp, attackableProps } from '../src/sim/combat';
 import { push, igniteTile, shock, damage } from '../src/sim/rules';
 import { PARTY_DEFS, ENEMY_DEFS } from '../src/content/units';
 import { findPath } from '../src/sim/pathfind';
@@ -31,6 +31,19 @@ describe('push', () => {
     const ev: any[] = []; push(l, u, { x: 1, y: 0 }, 1, ev);
     expect(tileAt(l, { x: 6, y: 5 })!.fire).toBeGreaterThan(0); expect(tileAt(l, { x: 7, y: 5 })!.fire).toBeGreaterThan(0);
     expect(u.pos).toEqual({ x: 5, y: 5 });
+  });
+});
+
+describe('props', () => {
+  it('a Lamplighter can break a barrel directly, spilling oil, and topple a brazier away from herself', () => {
+    const l = blank(); const cs = newCombatState(3);
+    tileAt(l, { x: 5, y: 5 })!.prop = { kind: 'barrel' }; tileAt(l, { x: 4, y: 8 })!.prop = { kind: 'brazier', lit: true };
+    const o = makeUnit(PARTY_DEFS.knight, { x: 4, y: 5 }); l.units.push(o);
+    expect(attackableProps(l, o).length).toBe(1);
+    const ev: any[] = []; expect(attackProp(l, cs, o, { x: 5, y: 5 }, ev)).toBe(true);
+    expect(tileAt(l, { x: 5, y: 5 })!.kind).toBe('oil'); expect(tileAt(l, { x: 6, y: 5 })!.kind).toBe('oil'); expect(tileAt(l, { x: 5, y: 5 })!.prop).toBeUndefined();
+    o.pos = { x: 4, y: 7 }; const ev2: any[] = []; expect(attackProp(l, cs, o, { x: 4, y: 8 }, ev2)).toBe(true);
+    expect(tileAt(l, { x: 4, y: 9 })!.fire).toBeGreaterThan(0); expect(tileAt(l, { x: 4, y: 7 })!.fire).toBe(0);
   });
 });
 

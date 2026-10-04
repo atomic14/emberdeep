@@ -8,7 +8,7 @@ import { generateFloor } from '../sim/dungeon';
 import { HOUR_NAMES, KEEPER_FOR_HOUR } from '../sim/dungeon';
 import {
   newCombatState, type CombatState, startCombat, moveUnit, undoMove, canUndo, basicAttack, attackTargets, attackDamage, useAbility, abilityTargets, abilityFootprint,
-  endPlayerTurn, exploreStep, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee,
+  endPlayerTurn, exploreStep, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee, attackableProps, attackProp,
 } from '../sim/combat';
 import { Rng } from '../sim/rng';
 import { PARTY_DEFS, ENEMY_DEFS } from '../content/units';
@@ -337,6 +337,8 @@ export class Game {
           if (valid.some(p => eq(p, cell))) { ov.set('footprint', abilityFootprint(L, u, this.armed, cell)); html = `<h4>${ab.name}</h4>${this.previewAbility(u, this.armed, cell)}`; }
           else if (hu && t.visible) html = this.unitTip(hu);
           else html = `<h4>${ab.name}</h4><div class="hint">Not a valid target. Right-click to cancel.</div>`;
+        } else if (!u.acted && t.prop && (t.prop.kind === 'barrel' || t.prop.kind === 'brazier') && !t.prop.broken && attackableProps(L, u).some(p => eq(p, cell))) {
+          html = this.propTip(t.prop.kind, t.prop) + `<div class="preview">${this.previewProp(u, cell)}</div><div class="hint">Click to ${t.prop.kind === 'barrel' ? 'break it' : 'knock it over'}.</div>`;
         } else if (hu && hu.faction === 'enemy' && t.visible) {
           html = this.unitTip(hu);
           if (!u.acted && attackTargets(L, u).includes(hu)) html += `<div class="preview">${this.previewAttack(u, hu)}</div><div class="hint">Click to attack.</div>`;
@@ -359,8 +361,8 @@ export class Game {
   private propTip(k: string, p: NonNullable<Level['tiles'][number]['prop']>) {
     const m: Record<string, [string, string]> = {
       door: [p.open ? 'Open door' : 'Door', p.open ? 'Click to close it (costs the action in combat). Closed doors block sight and the Pale.' : 'Click to open. Closed doors block sight. The Pale cannot open them; the Spent can.'],
-      brazier: [p.broken ? 'Fallen brazier' : 'Brazier', p.broken ? 'Burnt out.' : 'Push something into it and it falls over, lighting two tiles.'], lamp: ['Street lamp', 'Still lit after two hundred years. Light carries sight.'],
-      pillar: [p.broken ? 'Rubble' : 'Pillar', p.broken ? 'Blocks the way.' : 'Blocks line of sight. Slam an enemy into it for +2; Sunder breaks it.'], barrel: ['Oil barrel', 'Breaks when struck or pushed. Spills oil in a cross.'],
+      brazier: [p.broken ? 'Fallen brazier' : 'Brazier', p.broken ? 'Burnt out.' : 'Click to knock it over: fire on the tiles beyond it, away from you. Costs the action in a fight. Pushing an enemy into it does the same.'], lamp: ['Street lamp', 'Still lit after two hundred years. Light carries sight.'],
+      pillar: [p.broken ? 'Rubble' : 'Pillar', p.broken ? 'Blocks the way.' : 'Blocks line of sight. Slam an enemy into it for +2; Sunder breaks it.'], barrel: ['Oil barrel', 'Click to break it: oil spills on this tile and the four around it. Costs the action in a fight. Fire spreads along oil; Kindle lights it from a distance.'],
       chest: [p.used ? 'Empty chest' : 'Chest', p.used ? '' : 'Click to open.'], stairs: ['Stairs down', 'Click to descend or Ascend with your ember.'], shrine: ['A cold shrine', 'Bank the Lamp: a full rest, once per Hour.'],
       event: ['Something here', 'Click to look closer.'], ember: ['Ember', `Warm to the touch. ${p.amount ?? 1} ember.`], page: ['A page', 'Someone left this for whoever came after.'], niche: ['Niche', 'Badges and candles, carefully arranged.'], rubble: ['Rubble', ''],
     };
@@ -411,6 +413,18 @@ export class Game {
     basicAttack(L, cs, cu, ct, ev);
     return `${flanked ? '<div class="muted">Flanked: bonus damage.</div>' : ''}${dmg} damage${ct.armour && !ct.armourBroken ? ` (−${Math.min(dmg, ct.armour)} armour)` : ''}: ${this.summarize(this.level!, ev, L)}`;
   }
+  private previewProp(u: Unit, target: Vec2): string {
+    const { L, cs } = this.cloneSim(); const ev: SimEvent[] = [];
+    const cu = L.units.find(x => x.id === u.id)!;
+    attackProp(L, cs, cu, target, ev);
+    const oil = ev.filter(e => e.t === 'tile' && (e as any).kind === 'oil').length; const fire = ev.filter(e => e.t === 'fire' && (e as any).on).length;
+    const parts: string[] = [];
+    if (oil) parts.push(`Oil spills on ${oil} tile${oil > 1 ? 's' : ''}.`);
+    if (fire) parts.push(`${fire} tile${fire > 1 ? 's' : ''} catch fire.`);
+    const hurt = this.summarize(this.level!, ev.filter(e => e.t === 'damage' || e.t === 'die' || e.t === 'move'), L);
+    if (hurt !== 'No effect on anyone.') parts.push(hurt);
+    return parts.join('<br>') || 'Nothing happens.';
+  }
   private previewAbility(u: Unit, ab: string, target: Vec2): string {
     const { L, cs } = this.cloneSim(); const ev: SimEvent[] = [];
     const cu = L.units.find(x => x.id === u.id)!;
@@ -454,6 +468,16 @@ export class Game {
       return;
     }
     if (t.prop?.kind === 'door' && cheb(u.pos, cell) === 1) { const ev: SimEvent[] = []; if (interact(L, cs, u, cell, ev)) { await this.presenter.play(ev); this.afterEvents(); } return; }
+    if (t.prop && (t.prop.kind === 'barrel' || t.prop.kind === 'brazier') && !t.prop.broken) {
+      if (u.acted) { this.hud.log(`${u.name.split(' ')[0]} has already acted.`, 'warn'); return; }
+      if (attackableProps(L, u).some(p => eq(p, cell))) { const ev: SimEvent[] = []; attackProp(L, cs, u, cell, ev); this.armed = undefined; await this.presenter.play(ev); this.afterEvents(); return; }
+      // walk into reach first
+      const reach = moveRange(L, u); let best: Vec2 | undefined; let bc = 99;
+      for (const r of reach.values()) { const ok = u.def.attackRange === 1 ? cheb(r.pos, cell) === 1 : cheb(r.pos, cell) <= u.def.attackRange; if (ok && r.cost < bc) { bc = r.cost; best = r.pos; } }
+      if (best) { const ev: SimEvent[] = []; moveUnit(L, cs, u, best, ev); await this.presenter.play(ev); this.afterEvents(); if (attackableProps(L, u).some(p => eq(p, cell))) { const ev2: SimEvent[] = []; attackProp(L, cs, u, cell, ev2); await this.presenter.play(ev2); this.afterEvents(); } }
+      else { this.hud.log('Out of reach this turn.', 'warn'); }
+      return;
+    }
     if (!u.acted && moveRange(L, u).has(key(cell))) { const ev: SimEvent[] = []; moveUnit(L, cs, u, cell, ev); this.audio.sfx('ui_click', 1, 0.2); await this.presenter.play(ev); this.afterEvents(); return; }
     if (u.acted) this.hud.log(`${u.name.split(' ')[0]} has already acted. Select another Lamplighter or End Turn.`, 'warn');
   }
@@ -463,12 +487,12 @@ export class Game {
     this.armed = undefined; this.refreshHud(); this.refreshOverlays();
     await this.presenter.play(ev); this.afterEvents();
   }
-  private isInteractive(k: string, p: { used?: boolean; broken?: boolean }) { return (k === 'door') || (k === 'chest' && !p.used) || k === 'stairs' || (k === 'shrine' && !p.used && this.run?.shrineHour !== this.run?.hour) || (k === 'event' && !p.used) || (k === 'ember' && !p.used) || (k === 'page' && !p.used); }
+  private isInteractive(k: string, p: { used?: boolean; broken?: boolean }) { return (k === 'door') || ((k === 'barrel' || k === 'brazier') && !p.broken) || (k === 'chest' && !p.used) || k === 'stairs' || (k === 'shrine' && !p.used && this.run?.shrineHour !== this.run?.hour) || (k === 'event' && !p.used) || (k === 'ember' && !p.used) || (k === 'page' && !p.used); }
 
   // ------------------------------------------------------------------ exploration
   private explorePath(leader: Unit, dest: Vec2): Vec2[] | null {
     const L = this.level!; const t = tileAt(L, dest)!;
-    const blockingProp = !!t.prop && (t.prop.kind === 'chest' || (t.prop.kind === 'door' && !t.prop.open) || t.prop.kind === 'lamp' || t.prop.kind === 'niche');
+    const blockingProp = !!t.prop && (t.prop.kind === 'chest' || (t.prop.kind === 'door' && !t.prop.open) || t.prop.kind === 'lamp' || t.prop.kind === 'niche' || ((t.prop.kind === 'barrel' || t.prop.kind === 'brazier') && !t.prop.broken) || (t.prop.kind === 'pillar' && !t.prop.broken));
     const enemy = unitAt(L, dest)?.faction === 'enemy';
     return findPath(L, leader.pos, dest, { unit: leader, adjacent: blockingProp || enemy, avoidUnits: false, penalty: p => (tileAt(L, p)!.explored ? 0 : 50) + (tileAt(L, p)!.fire ? 20 : 0) + (tileAt(L, p)!.kind === 'water' ? 1 : 0) });
   }
@@ -513,7 +537,7 @@ export class Game {
     let frontier: { pos: Vec2; cost: number } | undefined; let poi: { pos: Vec2; cost: number } | undefined;
     const consider = (r: { pos: Vec2; cost: number }) => {
       const t = tileAt(L, r.pos)!; if (!t.explored) return;
-      if (t.prop && this.isInteractive(t.prop.kind, t.prop) && t.prop.kind !== 'stairs' && t.prop.kind !== 'door') { if (!poi || r.cost < poi.cost) poi = r; }
+      if (t.prop && this.isInteractive(t.prop.kind, t.prop) && t.prop.kind !== 'stairs' && t.prop.kind !== 'door' && t.prop.kind !== 'barrel' && t.prop.kind !== 'brazier') { if (!poi || r.cost < poi.cost) poi = r; }
       if (t.prop?.kind === 'door' && !t.prop.open) { if (!poi || r.cost + 1 < poi.cost) poi = r; }
       let hasUnexplored = false; for (const d of DIRS8) { const n = tileAt(L, add(r.pos, d)); if (n && !n.explored && n.kind !== 'wall' && n.kind !== 'void') hasUnexplored = true; }
       if (hasUnexplored && !eq(r.pos, leader.pos) && (!frontier || r.cost < frontier.cost)) frontier = r;
@@ -550,6 +574,13 @@ export class Game {
       }
       case 'event': { if (p.used) return; const card = EVENTS.find(e => e.id === p.eventId) ?? EVENTS.find(e => e.hour.includes(run.hour) && !run.eventsSeen.includes(e.id)) ?? EVENTS[0]; p.used = true; this.presenter.world?.rebuildProps(); await this.runEvent(card); this.snapshot(); return; }
       case 'stairs': { await this.stairsFlow(); return; }
+      case 'barrel': case 'brazier': {
+        if (p.broken) return;
+        const ok = await this.screens.confirm(p.kind === 'barrel' ? 'Break the barrel?' : 'Knock the brazier over?', p.kind === 'barrel' ? 'Oil spills on this tile and the four around it. Fire spreads along oil. The noise may carry.' : 'Fire on the tiles beyond it, away from you. The noise may carry.', p.kind === 'barrel' ? 'Break it' : 'Knock it over', 'Leave it');
+        if (!ok) return;
+        const ev: SimEvent[] = []; if (attackProp(L, cs, leader, pos, ev)) { await this.presenter.play(ev); this.afterEvents(); }
+        return;
+      }
     }
   }
 
@@ -789,6 +820,6 @@ export class Game {
     const threats = threatTiles(L, cs); ov.set('threat', [...threats.keys()].map(k => { const [x, y] = k.split(',').map(Number); return { x, y }; }));
     const u = this.selected(); if (!u || cs.phase !== 'player') return;
     if (this.armed && this.armed !== 'attack') { ov.set('ability', abilityTargets(L, u, this.armed)); return; }
-    if (!u.acted) { ov.set('reach', [...moveRange(L, u).values()].map(r => r.pos)); ov.set('attack', attackTargets(L, u).map(e => e.pos)); }
+    if (!u.acted) { ov.set('reach', [...moveRange(L, u).values()].map(r => r.pos)); ov.set('attack', attackTargets(L, u).map(e => e.pos).concat(attackableProps(L, u))); }
   }
 }

@@ -1,4 +1,4 @@
-/** In-run HUD: party portraits, hotbar, Hold button, banners, log and tooltip. Plain DOM. */
+/** In-run HUD: party portraits, hotbar, End Turn button, banners, log and tooltip. Plain DOM. */
 import type { Unit, Phase } from '../sim/types';
 import { ABILITIES } from '../content/abilities';
 import { BOONS } from '../content/boons';
@@ -41,7 +41,8 @@ export class Hud {
       <div id="party"></div>
       <div id="hotbar"></div>
       <button id="explore" title="Walk to the nearest unexplored place (Space)">Explore</button>
-      <button id="endturn" class="primary" title="End your turn (Space)">Hold</button>`;
+      <div id="turntip" class="panel hidden"></div>
+      <button id="endturn" class="primary" title="End your turn (Space)"><span class="label">End Turn</span><small></small></button>`;
     this.party = this.el.querySelector('#party')!; this.hotbar = this.el.querySelector('#hotbar')!;
     this.endTurn = this.el.querySelector('#endturn')!; this.explore = this.el.querySelector('#explore')!;
     this.bannerEl = this.el.querySelector('#banner')!; this.logEl = this.el.querySelector('#log')!; this.floorEl = this.el.querySelector('#floorname')!; this.resEl = this.el.querySelector('#resources')!;
@@ -55,12 +56,18 @@ export class Hud {
   setFloor(name: string, sub: string) { this.floorEl.innerHTML = `${name}<small>${sub}</small>`; }
   setResources(ember: number, pages: number, run: number) { this.resEl.innerHTML = `<span><span class="ember">◆</span> ${ember} ember</span><span class="muted">${pages}/12 pages</span><span class="muted">Descent ${run}</span>`; }
 
-  setPhase(phase: Phase, allActed: boolean) {
+  setPhase(phase: Phase, acted: number, total: number, showTip = false) {
     const combat = phase === 'player' || phase === 'enemy';
+    const allActed = acted >= total;
     this.endTurn.style.display = combat ? '' : 'none'; this.explore.style.display = combat ? 'none' : '';
     this.endTurn.disabled = phase !== 'player';
     this.endTurn.classList.toggle('pulse', phase === 'player' && allActed);
-    this.endTurn.textContent = phase === 'enemy' ? 'Theirs…' : 'Hold';
+    const label = this.endTurn.querySelector('.label') as HTMLElement, sub = this.endTurn.querySelector('small') as HTMLElement;
+    label.textContent = phase === 'enemy' ? 'Their turn…' : 'End Turn';
+    sub.textContent = phase === 'enemy' ? 'the Deep moves' : allActed ? 'everyone has acted · Space' : `${acted} of ${total} acted · Space`;
+    const tip = this.el.querySelector('#turntip') as HTMLElement;
+    tip.classList.toggle('hidden', !(combat && phase === 'player' && allActed && showTip));
+    tip.textContent = 'Everyone has acted. Press End Turn (or Space) and the Deep takes its turn.';
   }
 
   renderParty(units: Unit[], selectedId: string | undefined, canUndo: (u: Unit) => boolean, phase: Phase) {

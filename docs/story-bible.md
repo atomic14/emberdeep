@@ -126,7 +126,7 @@ Reached by the choice in the Warm Hour. Which choices are available depends on w
 
 The classes map to the five Adventurer models: Knight, Barbarian, Mage, Rogue, Ranger.
 
-**Oriel Vance — Shieldwarden (Knight).** Former Watch sergeant. Exact, dry, protective to a fault; stands between people and things. Her younger brother Tam went down as a Candle six years ago. She does not mention this; the Book does, if you read it. Her abilities are about control: *Shield Bash* (push 1), *Hold* (intercept the first attack on an adjacent ally), *Bulwark* (gain armour, draw intents).
+**Oriel Vance — Shieldwarden (Knight).** Former Watch sergeant. Exact, dry, protective to a fault; stands between people and things. Her younger brother Tam went down as a Candle six years ago. She does not mention this; the Book does, if you read it. Her abilities are about control: *Shield Bash* (push 1), *Guard* (intercept the first attack on an adjacent ally), *Bulwark* (gain armour, draw intents).
 - *"I'll go first. That's not bravery, it's the order of march."*
 
 **Brann Kettle — Breaker (Barbarian).** Ember-miner, huge, gentle, terrified of the dark and will not say so. Talks to his pick, which is named Mercy. Abilities are about moving the world: *Heave* (push 2, into walls for damage), *Sunder* (destroy an object or strip armour), *Roar* (all enemy intents in range retarget him).
@@ -181,4 +181,4 @@ The Book is readable in the Vigil at any time. Reading it is how you learn about
 
 Caddow names are English-rural with worn edges: Hask, Vell, Kettle, Ferrier, Grebe, Marrow, Crane. Church names are Latinate: Ignatius, Anneke, Benedek. Things in the Deep are named by what they did: the Ferryman, Mother Tallow, the Prelate Below, the Spent, the Pale, the Kept. Nothing is called a "demon" or a "lich". The word "monster" is never used by anyone except Pim.
 
-UI copy follows the guild voice: *End Turn* is "Hold"; *Rest* is "Bank the Lamp"; *Flee/Retreat* is "Ascend"; the death screen is "The Book of Spent"; new game is "Light a Candle".
+UI copy follows the guild voice: *End Turn* keeps its plain name (playtesting showed "Hold" hid the one thing a new player must know); *Rest* is "Bank the Lamp"; *Flee/Retreat* is "Ascend"; the death screen is "The Book of Spent"; new game is "Light a Candle".

@@ -176,10 +176,11 @@ export class Screens {
     d.innerHTML = `<div class="card panel settings" style="width:min(520px,92vw)"><h2>Settings</h2>
       <label>Sound effects <input type="range" id="sfx" min="0" max="1" step="0.05" value="${s.sfx}"></label>
       <label>Music <input type="range" id="music" min="0" max="1" step="0.05" value="${s.music}"></label>
-      <label>Ask before Holding with actions unspent <input type="checkbox" id="confirm" ${s.confirmEndTurn ? 'checked' : ''}></label>
+      <label>Ask before ending a turn with attacks unspent <input type="checkbox" id="confirm" ${s.confirmEndTurn ? 'checked' : ''}></label>
+      <label>End the turn automatically once everyone has acted <input type="checkbox" id="autoend" ${s.autoEndTurn ? 'checked' : ''}></label>
       <label>Camera follows the party <input type="checkbox" id="follow" ${s.cameraFollow ? 'checked' : ''}></label>
       <div class="row-btns">${(extra ?? []).map((e, i) => `<button data-x="${i}">${e.label}</button>`).join('')}<button class="primary" id="ok">Done</button></div></div>`;
-    const upd = () => { s.sfx = +(d.querySelector('#sfx') as HTMLInputElement).value; s.music = +(d.querySelector('#music') as HTMLInputElement).value; s.confirmEndTurn = (d.querySelector('#confirm') as HTMLInputElement).checked; s.cameraFollow = (d.querySelector('#follow') as HTMLInputElement).checked; onChange(s); };
+    const upd = () => { s.sfx = +(d.querySelector('#sfx') as HTMLInputElement).value; s.music = +(d.querySelector('#music') as HTMLInputElement).value; s.confirmEndTurn = (d.querySelector('#confirm') as HTMLInputElement).checked; s.autoEndTurn = (d.querySelector('#autoend') as HTMLInputElement).checked; s.cameraFollow = (d.querySelector('#follow') as HTMLInputElement).checked; onChange(s); };
     d.querySelectorAll('input').forEach(i => i.oninput = upd);
     (d.querySelector('#ok') as HTMLButtonElement).onclick = () => { this.close(); onClose(); };
     d.querySelectorAll<HTMLButtonElement>('[data-x]').forEach(b => b.onclick = () => { this.close(); extra![+b.dataset.x!].action(); });
@@ -190,11 +191,11 @@ export class Screens {
       <p>Left-click does the obvious thing. Hover first; the game shows you what will happen before you commit.</p>
       <div class="keys">
         <b>EXPLORING</b><span>Click a tile to walk the Lantern there. Click a door, chest or glowing thing to use it. <i>Space</i> explores to the nearest unseen place.</span>
-        <b>COMBAT</b><span>Your whole Lantern acts, in any order; then everything else does. Each Lamplighter may <b>move</b> (blue tiles) and take <b>one action</b>: attack (click an enemy) or an ability (click it, or press 2–4, then click a target).</span>
+        <b>COMBAT</b><span>Turns alternate: your whole Lantern acts, then the Deep acts. Each Lamplighter may <b>move</b> (blue tiles) and take <b>one action</b>: attack (click an enemy) or an ability (click it, or press 2–4, then click a target).</span>
+        <b>END TURN</b><span>Nothing happens until you press <b>End Turn</b> (bottom right, or <i>Space</i>). The button shows how many Lamplighters have acted and pulses when everyone has. You can switch on automatic turn ending in Settings.</span>
         <b>RED TILES</b><span>Where enemies will strike at the start of their turn. They decide first and commit. Step out of red, or push them so they hit something else. Pushing an enemy moves its attack with it.</span>
         <b>UNDO</b><span>Movement can be undone (right-click, Z, or the undo link) until the Lamplighter acts.</span>
-        <b>HOLD</b><span>Ends your turn (<i>Space</i>). The button pulses when everyone has acted.</span>
-        <b>THE ROOM</b><span>Water slows and conducts lightning. Oil burns and spreads. Chasms are final. Braziers fall over. Doors shut. Pillars block sight and crumble. The thing in front of you is not the only thing in the room.</span>
+                <b>THE ROOM</b><span>Water slows and conducts lightning. Oil burns and spreads. Chasms are final. Braziers fall over. Doors shut. Pillars block sight and crumble. The thing in front of you is not the only thing in the room.</span>
         <b>CAMERA</b><span>Wheel zooms. WASD or arrows pan. <i>F</i> toggles following. <i>Tab</i> cycles Lamplighters. <i>Esc</i> cancels, then opens the menu.</span>
         <b>STAIRS</b><span>At every staircase you may go deeper or <b>Ascend</b> with the ember you carry. Coming back is the hard rule.</span>
       </div>
@@ -203,7 +204,7 @@ export class Screens {
   }
   menu(o: { onResume: () => void; onSettings: () => void; onHelp: () => void; onAbandon: () => void }) {
     const d = this.open();
-    d.innerHTML = `<div class="card panel" style="width:min(420px,92vw);text-align:center"><h2>Paused</h2><div class="row-btns" style="flex-direction:column"><button class="primary" id="r">Resume</button><button id="s">Settings</button><button id="h">How to Play</button><button id="a">Ascend without ember (abandon the descent)</button></div></div>`;
+    d.innerHTML = `<div class="card panel" style="width:min(420px,92vw);text-align:center"><h2>Paused</h2><div class="row-btns" style="flex-direction:column"><button class="primary" id="r">Resume</button><button id="s">Settings</button><button id="h">How to Play</button><button id="a">Climb out without ember (abandon the descent)</button></div></div>`;
     (d.querySelector('#r') as HTMLButtonElement).onclick = () => { this.close(); o.onResume(); };
     (d.querySelector('#s') as HTMLButtonElement).onclick = () => { this.close(); o.onSettings(); };
     (d.querySelector('#h') as HTMLButtonElement).onclick = () => { this.close(); o.onHelp(); };

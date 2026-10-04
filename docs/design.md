@@ -75,7 +75,7 @@ Combat begins automatically; the camera eases to frame it; a one-line banner say
 - **Left-click an ability button (or 1–4):** enters targeting; valid tiles highlight; hover previews outcome; click to confirm; **right-click / Escape** cancels.
 - **Click a party portrait or the unit itself:** select it. Tab cycles.
 - **Enemy intents:** every enemy shows a red marker over the tiles it will attack next turn and an icon of what it will do (attack, grab, shoot a line, heal, explode). Hover an enemy for the exact numbers.
-- **Hold (End Turn):** big button bottom-right, and Space. If a unit still has an unused action, the button asks once ("Oriel hasn't acted. Hold anyway?") with a "don't ask again" tick.
+- **End Turn:** big button bottom-right, and Space. It shows how many Lamplighters have acted, pulses when everyone has, and asks once if someone could still strike an enemy. Optional automatic turn ending in settings.
 - **Dangerous actions confirm once:** moving onto a tile an enemy will attack pulses the tile; attacking an Ember Wight while adjacent shows the explosion preview. No modal dialogs in combat.
 
 ### Things we deliberately do not have

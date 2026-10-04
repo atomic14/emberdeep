@@ -49,6 +49,7 @@ export class Game {
   private seenKeeper = false;
   private busyFlow = false;
   private hoverTimer = 0;
+  private autoEndTimer = 0;
   private lastPointer = { x: 0, y: 0 };
 
   constructor(public view: View, public presenter: Presenter, public hud: Hud, public screens: Screens, public audio: AudioSys) {
@@ -60,7 +61,7 @@ export class Game {
     presenter.onCombatStart = (r) => {
       this.hud.banner('They have seen your light', r, 2200); this.audio.playMusic(this.level?.meta.isKeeper ? 'combat2' : 'combat'); this.frameCombat();
       const n = (this.meta.flags['_fights'] as unknown as number) || 0; (this.meta.flags as any)['_fights'] = n + 1;
-      const hints = ['Your whole Lantern acts first, in any order. Enemies move and then commit to an attack; they strike at the start of their next turn.', 'Red tiles are where enemies will strike. Step out of them, or push the enemy so its attack lands elsewhere.', 'Hover an enemy to see what it will do and what your attack would do to it. Numbers never lie here.', 'Movement can be undone until you act. Right-click or Z.'];
+      const hints = ['Each Lamplighter can move and then take one action, in any order. When everyone has acted, press End Turn (Space). Then the Deep moves.', 'Red tiles are where enemies will strike. Step out of them, or push the enemy so its attack lands elsewhere.', 'Hover an enemy to see what it will do and what your attack would do to it. Numbers never lie here.', 'Movement can be undone until you act. Right-click or Z.'];
       if (n < hints.length) setTimeout(() => this.hud.log(hints[n], 'story'), 2400);
     };
     presenter.onCombatEnd = (won) => { if (won) { this.hud.banner('The room is quiet', '', 1600); this.audio.playMusic(this.musicFor()); setTimeout(() => this.wonFight(), 500); } };
@@ -454,7 +455,7 @@ export class Game {
     }
     if (t.prop?.kind === 'door' && cheb(u.pos, cell) === 1) { const ev: SimEvent[] = []; if (interact(L, cs, u, cell, ev)) { await this.presenter.play(ev); this.afterEvents(); } return; }
     if (!u.acted && moveRange(L, u).has(key(cell))) { const ev: SimEvent[] = []; moveUnit(L, cs, u, cell, ev); this.audio.sfx('ui_click', 1, 0.2); await this.presenter.play(ev); this.afterEvents(); return; }
-    if (u.acted) this.hud.log(`${u.name.split(' ')[0]} has already acted. Select another Lamplighter or Hold.`, 'warn');
+    if (u.acted) this.hud.log(`${u.name.split(' ')[0]} has already acted. Select another Lamplighter or End Turn.`, 'warn');
   }
   private async doAbility(u: Unit, ab: string, target: Vec2) {
     const ev: SimEvent[] = [];
@@ -617,14 +618,14 @@ export class Game {
     const L = this.level, cs = this.cs; if (!L || !cs || cs.phase !== 'player' || this.presenter.busy || this.busyFlow) return;
     const unspent = living(L, 'party').filter(u => !u.acted && (attackTargets(L, u).length > 0 || u.def.abilities.some(ab => (u.cooldowns[ab] ?? 0) === 0 && ABILITIES[ab].shape !== 'self' && abilityTargets(L, u, ab).some(p => unitAt(L, p)?.faction === 'enemy'))));
     if (unspent.length && this.meta.settings.confirmEndTurn) {
-      const ok = await this.screens.confirm('Hold?', `${unspent.map(u => u.name.split(' ')[0]).join(', ')} could still strike something.`, 'Hold anyway', 'Wait');
+      const ok = await this.screens.confirm('End the turn?', `${unspent.map(u => u.name.split(' ')[0]).join(', ')} could still strike something.`, 'End turn anyway', 'Wait');
       if (!ok) return;
     }
     this.armed = undefined;
     const ev: SimEvent[] = [];
     endPlayerTurn(L, cs, ev);
     this.run!.turnsTaken++;
-    this.hud.setPhase('enemy', false); this.refreshOverlays();
+    this.hud.setPhase('enemy', 0, living(L, 'party').length); this.refreshOverlays();
     await this.presenter.play(ev);
     this.afterEvents();
     if (cs.phase === 'player') { this.hud.banner('Your turn', '', 600); const first = living(L, 'party').find(u => !u.acted); if (first) { this.selectedId = first.id; } if (this.meta.settings.cameraFollow) this.frameCombat(); this.refreshHud(); this.refreshOverlays(); await this.checkKeeperBeats(); }
@@ -775,7 +776,9 @@ export class Game {
     const party = this.partyUnits();
     this.hud.renderParty(party, this.selectedId, u => canUndo(u), cs.phase);
     this.hud.renderHotbar(this.selected(), this.armed, cs.phase);
-    this.hud.setPhase(cs.phase, living(L, 'party').every(u => u.acted));
+    const alive = living(L, 'party'); const acted = alive.filter(u => u.acted).length;
+    this.hud.setPhase(cs.phase, acted, alive.length, ((this.meta.flags as any)['_fights'] ?? 0) <= 3);
+    if (this.meta.settings.autoEndTurn && cs.phase === 'player' && alive.length && acted >= alive.length && !this.armed && !this.presenter.busy && !this.screens.isOpen) { clearTimeout(this.autoEndTimer); this.autoEndTimer = window.setTimeout(() => { if (this.cs?.phase === 'player' && living(this.level!, 'party').every(u => u.acted)) this.endTurn(); }, 900); }
     this.hud.setResources(this.run?.ember ?? 0, this.meta.pagesFound.length, this.meta.runs);
     for (const a of this.presenter.actors.values()) a.setSelected(a.unit.id === this.selectedId && a.unit.alive && cs.phase === 'player');
   }

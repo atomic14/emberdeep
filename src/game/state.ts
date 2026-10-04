@@ -4,7 +4,7 @@ import { PARTY_DEFS, RECRUIT_NAMES } from '../content/units';
 
 export interface RosterMember { classId: ClassId; name: string; alive: boolean; runs: number; kills: number; original: boolean }
 export interface BookEntry { text: string; run: number; name: string }
-export interface Settings { sfx: number; music: number; confirmEndTurn: boolean; cameraFollow: boolean; shownHelp: boolean }
+export interface Settings { sfx: number; music: number; confirmEndTurn: boolean; cameraFollow: boolean; shownHelp: boolean; autoEndTurn: boolean }
 export interface Meta {
   version: number; runs: number; deaths: number; ascended: number; emberBanked: number; emberTotal: number;
   upgrades: Record<string, number>; roster: RosterMember[]; pagesFound: number[]; flags: Record<string, boolean>;
@@ -24,7 +24,7 @@ export function newRoster(): RosterMember[] {
 }
 export function newMeta(): Meta {
   return { version: 1, runs: 0, deaths: 0, ascended: 0, emberBanked: 0, emberTotal: 0, upgrades: {}, roster: newRoster(), pagesFound: [], flags: {}, book: [], linesSaid: [], endings: [], fever: 0, bestHour: 0,
-    settings: { sfx: 0.8, music: 0.45, confirmEndTurn: true, cameraFollow: true, shownHelp: false } };
+    settings: { sfx: 0.8, music: 0.45, confirmEndTurn: true, cameraFollow: true, shownHelp: false, autoEndTurn: false } };
 }
 export function loadMeta(): Meta {
   try { const s = localStorage.getItem(KEY); if (s) { const m = JSON.parse(s) as Meta; return { ...newMeta(), ...m, settings: { ...newMeta().settings, ...(m.settings ?? {}) } }; } } catch { }

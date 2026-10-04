@@ -93,7 +93,7 @@ describe('combat flow', () => {
     basicAttack(l, cs, b, e, ev); // 4 +1 -1 = 4 -> dead
     expect(e.alive).toBe(false); expect(cs.phase).toBe('explore');
   });
-  it('Hold redirects a strike onto Oriel', () => {
+  it('Guard redirects a strike onto Oriel', () => {
     const { l, cs, o, b, e, ev } = setup();
     moveUnit(l, cs, b, { x: 4, y: 5 }, ev); moveUnit(l, cs, o, { x: 4, y: 6 }, ev);
     endPlayerTurn(l, cs, ev); // spent aims at an adjacent party member (lowest hp): Brann 16 vs Oriel 14 -> Oriel? adjacentTarget prefers lowest hp

@@ -199,7 +199,15 @@ export class World {
       case 'pillar': return this.makeObj(pr.broken ? 'rubble_large' : (l.meta.hour === 2 ? 'pillar_decorated' : 'pillar'));
       case 'rubble': return this.makeObj('rubble_large');
       case 'barrel': return pr.broken ? undefined : this.makeObj('barrel_large');
-      case 'chest': { const o = this.makeObj(pr.used ? 'chest' : 'chest_gold'); if (o && !pr.used) this.lightSpots.push({ pos: p, color: 0xffd080, intensity: 10, flicker: false, y: 1.2 }); return o; }
+      case 'chest': {
+        if (!pr.used) { const o = this.makeObj('chest_gold'); if (o) this.lightSpots.push({ pos: p, color: 0xffd080, intensity: 10, flicker: false, y: 1.2 }); return o; }
+        // opened: the plain chest with its lid thrown back
+        const pc = this.piece('chest'); if (!pc) return undefined;
+        const o = pc.object.clone(true);
+        o.traverse(ch => { const m = ch as THREE.Mesh; if (m.isMesh) { m.material = this.assets.dungeonMaterial; m.castShadow = true; m.receiveShadow = true; } });
+        const lid = o.getObjectByName('chest_lid'); if (lid) { lid.rotation.x = -2.2; }
+        return o;
+      }
       case 'shrine': { const o = this.makeObj('shrine_candles') ?? this.makeObj('candle_triple'); this.lightSpots.push({ pos: p, color: 0xffd0a0, intensity: 24, flicker: true, y: 2 }); return o; }
       case 'event': { const g = new THREE.Group(); const a = this.makeObj('candle_triple'); const b = this.makeObj('plaque_candles'); if (a) { a.position.set(-0.8, 0, 0.6); g.add(a); } if (b) { b.position.set(0.6, 0, -0.4); g.add(b); } if (!a && !b) return this.makeObj('table_small'); this.lightSpots.push({ pos: p, color: 0xffd0a0, intensity: 14, flicker: true, y: 1.2 }); return g; }
       case 'ember': { if (pr.used) return undefined; const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.75, 0), this.emberMat); m.position.y = 0.6; m.rotation.set(0.4, 0.7, 0.2); m.castShadow = true; this.lightSpots.push({ pos: p, color: 0xff7a2a, intensity: 18, flicker: true, y: 1 }); return m; }

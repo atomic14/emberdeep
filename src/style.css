@@ -58,7 +58,10 @@ h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: .08e
 .ability.armed { border-color: var(--ember); box-shadow: 0 0 14px rgba(255,140,58,.3); }
 .ability.basic { border-color: rgba(232,220,196,.35); }
 
-#endturn { position: absolute; right: 16px; bottom: 16px; width: 150px; height: 64px; font-size: 18px; }
+#endturn { position: absolute; right: 16px; bottom: 16px; width: 190px; height: 68px; font-size: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+#endturn small { font-family: var(--serif); font-size: 12px; letter-spacing: 0; color: var(--paper-dim); font-style: italic; }
+#endturn.pulse small { color: var(--paper); }
+#turntip { position: absolute; right: 16px; bottom: 94px; width: 260px; padding: 10px 12px; font-size: 13.5px; line-height: 1.35; font-style: italic; border-color: var(--ember-dim); animation: fadeIn .3s ease-out; }
 #endturn.pulse { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { box-shadow: 0 0 0 rgba(255,140,58,0); } 50% { box-shadow: 0 0 22px rgba(255,140,58,.45); } }
 #explore { position: absolute; right: 16px; bottom: 92px; width: 150px; }

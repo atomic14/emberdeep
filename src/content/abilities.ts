@@ -3,7 +3,7 @@ import type { AbilityDef } from '../sim/types';
 export const ABILITIES: Record<string, AbilityDef> = {
   // ---- Oriel / Shieldwarden
   shield_bash: { id: 'shield_bash', name: 'Shield Bash', desc: '2 damage to an adjacent unit and push it 1 tile.', cooldown: 2, range: 1, shape: 'single', targets: 'unit', icon: '🛡' },
-  hold: { id: 'hold', name: 'Hold', desc: 'Until your next turn, the first attack that would hit an adjacent ally hits Oriel instead.', cooldown: 3, range: 0, shape: 'self', icon: '✋' },
+  hold: { id: 'hold', name: 'Guard', desc: 'Until your next turn, the first attack that would hit an adjacent ally hits Oriel instead.', cooldown: 3, range: 0, shape: 'self', icon: '✋' },
   bulwark: { id: 'bulwark', name: 'Bulwark', desc: '+2 armour until your next turn, and every enemy within 3 tiles re-aims its attack at Oriel if it can.', cooldown: 3, range: 0, shape: 'self', icon: '⛨' },
   // ---- Brann / Breaker
   heave: { id: 'heave', name: 'Heave', desc: '2 damage to an adjacent unit and push it 2 tiles. Slams into walls deal +1 per blocked tile.', cooldown: 2, range: 1, shape: 'single', targets: 'unit', icon: '💪' },

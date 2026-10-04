@@ -23,7 +23,7 @@ export const BOONS: Boon[] = [
   // Oriel
   { id: 'bash_far', name: 'Heavy Shield', desc: 'Shield Bash pushes 2 instead of 1.', classId: 'knight', apply: mod('shield_bash_push', 1) },
   { id: 'bash_hard', name: 'Iron Rim', desc: 'Shield Bash deals 4 instead of 2.', classId: 'knight', apply: mod('shield_bash_dmg', 2) },
-  { id: 'hold_fast', name: 'Oath of Hold', desc: 'Hold cooldown 2 instead of 3.', classId: 'knight', apply: mod('hold_cd', -1) },
+  { id: 'hold_fast', name: 'Oath of the Shield', desc: 'Guard cooldown 2 instead of 3.', classId: 'knight', apply: mod('hold_cd', -1) },
   // Brann
   { id: 'heave_far', name: 'Mercy\'s Reach', desc: 'Heave pushes 3 instead of 2.', classId: 'barbarian', apply: mod('heave_push', 1) },
   { id: 'heave_hard', name: 'Miner\'s Shoulders', desc: 'Heave deals 4 instead of 2.', classId: 'barbarian', apply: mod('heave_dmg', 2) },

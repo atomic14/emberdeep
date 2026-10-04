@@ -8,7 +8,7 @@ import { generateFloor } from '../sim/dungeon';
 import { HOUR_NAMES, KEEPER_FOR_HOUR } from '../sim/dungeon';
 import {
   newCombatState, type CombatState, startCombat, moveUnit, undoMove, canUndo, basicAttack, attackTargets, attackDamage, useAbility, abilityTargets, abilityFootprint,
-  endPlayerTurn, exploreStep, followStep, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee, attackableProps, attackProp,
+  endPlayerTurn, exploreStep, followStep, marchOrder, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee, attackableProps, attackProp,
 } from '../sim/combat';
 import { Rng } from '../sim/rng';
 import { PARTY_DEFS, ENEMY_DEFS } from '../content/units';
@@ -50,6 +50,7 @@ export class Game {
   private busyFlow = false;
   private hoverTimer = 0;
   private autoEndTimer = 0;
+  private wasCombat = false;
   private lastPointer = { x: 0, y: 0 };
 
   constructor(public view: View, public presenter: Presenter, public hud: Hud, public screens: Screens, public audio: AudioSys) {
@@ -171,7 +172,7 @@ export class Game {
     this.presenter.setLevel(this.level); this.backdropHour = 0; this.view.setZoom(1); this.presenter.showBars = true;
     this.presenter.focusParty(true);
     const party = living(this.level, 'party');
-    this.leaderId = (resumed && snap!.leaderId && party.some(u => u.id === snap!.leaderId)) ? snap!.leaderId : party[0]?.id; this.selectedId = this.leaderId; this.armed = undefined; this.seenKeeper = false;
+    this.leaderId = (resumed && snap!.leaderId && party.some(u => u.id === snap!.leaderId)) ? snap!.leaderId : marchOrder(this.level)[0]?.id; this.selectedId = this.leaderId; this.armed = undefined; this.seenKeeper = false;
     this.hud.show(true); this.hud.tooltip.hide();
     const hourNum = ['I', 'II', 'III', 'IV'][run.hour - 1];
     this.hud.setFloor(`Hour ${hourNum} · ${HOUR_NAMES[run.hour]}`, isKeeper ? 'The Keeper' : `Floor ${run.floor}`);
@@ -266,12 +267,12 @@ export class Game {
     if (span > 7 && this.view.zoomIndex < 2) this.view.setZoom(2); else if (span <= 5 && this.view.zoomIndex > 1) this.view.setZoom(1);
   }
   selected(): Unit | undefined { return this.level?.units.find(u => u.id === this.selectedId && u.alive); }
-  leader(): Unit | undefined { const L = this.level; if (!L) return; return L.units.find(u => u.id === this.leaderId && u.alive) ?? living(L, 'party')[0]; }
+  leader(): Unit | undefined { const L = this.level; if (!L) return; return L.units.find(u => u.id === this.leaderId && u.alive) ?? marchOrder(L)[0]; }
   partyUnits() { return this.level ? this.level.units.filter(u => u.faction === 'party') : []; }
 
   select(id: string) {
     const u = this.level?.units.find(x => x.id === id); if (!u || !u.alive) return;
-    this.selectedId = id; if (this.cs?.phase === 'explore') this.leaderId = id;
+    this.selectedId = id; if (this.cs?.phase === 'explore' && this.leaderId !== id) { this.leaderId = id; this.hud.log(`${u.name.split(' ')[0]} leads until the next fight.`); }
     this.armed = undefined; this.audio.sfx('ui_click', 1, 0.3);
     if (this.cs?.phase === 'player' && !this.onScreen(u.pos)) this.view.lookAtGrid(u.pos.x, u.pos.y);
     this.refreshHud(); this.refreshOverlays();
@@ -677,7 +678,8 @@ export class Game {
     // party deaths this moment
     for (const u of L.units) if (u.faction === 'party' && !u.alive && !u.mods['_written']) { u.mods['_written'] = 1; this.writeName(u); }
     if (cs.phase === 'player') { const sel = this.selected(); if (!sel || sel.acted) { const next = living(L, 'party').find(u => !u.acted); if (next) this.selectedId = next.id; } }
-    if (cs.phase === 'explore') { this.armed = undefined; const lead = this.leader(); if (lead) this.leaderId = lead.id, this.selectedId = lead.id; }
+    if (cs.phase === 'explore') { this.armed = undefined; if (this.wasCombat) { const front = marchOrder(L)[0]; if (front) this.leaderId = front.id; this.wasCombat = false; } const lead = this.leader(); if (lead) this.leaderId = lead.id, this.selectedId = lead.id; }
+    if (cs.phase === 'player' || cs.phase === 'enemy') this.wasCombat = true;
     this.refreshHud(); this.refreshOverlays();
     this.onHover(this.lastPointer.x, this.lastPointer.y);
     if (cs.phase === 'lost') { this.lanternOut(); return; }

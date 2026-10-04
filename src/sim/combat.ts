@@ -424,10 +424,14 @@ function spawnSpots(l: Level, centre: Vec2, r: number): Vec2[] {
 
 // ---------------------------------------------------------------- exploration movement
 
-/** Move followers toward the leader. Followers that have fallen behind take extra steps so the Lantern never splits. */
+/** Order of march: shields and breakers in front, the thief in the middle, ranged at the back. */
+export const MARCH_RANK: Record<string, number> = { knight: 0, barbarian: 1, rogue: 2, ranger: 3, mage: 4 };
+export function marchOrder(l: Level): Unit[] { return living(l, 'party').sort((a, b) => (MARCH_RANK[a.def.id] ?? 2) - (MARCH_RANK[b.def.id] ?? 2)); }
+
+/** Move followers toward the leader in march order. Followers that have fallen behind take extra steps so the Lantern never splits. */
 export function followStep(l: Level, leader: Unit, ev: Ev, vacated?: Vec2, extra = true): boolean {
   let moved = false;
-  const followers = living(l, 'party').filter(u => u !== leader).sort((a, b) => cheb(a.pos, leader.pos) - cheb(b.pos, leader.pos));
+  const followers = marchOrder(l).filter(u => u !== leader);
   let target = vacated;
   for (const f of followers) {
     const dist = cheb(f.pos, leader.pos);

@@ -40,7 +40,7 @@ export class Hud {
       <div id="log"></div>
       <div id="party"></div>
       <div id="hotbar"></div>
-      <button id="explore" title="Walk to the nearest unexplored place (Space)">Explore</button>
+      <button id="explore" title="Walk through everything unseen on this floor, stopping when something matters (Space)">Explore</button>
       <div id="turntip" class="panel hidden"></div>
       <button id="endturn" class="primary" title="End your turn (Space)"><span class="label">End Turn</span><small></small></button>`;
     this.party = this.el.querySelector('#party')!; this.hotbar = this.el.querySelector('#hotbar')!;
@@ -54,7 +54,7 @@ export class Hud {
   show(on: boolean) { this.el.style.display = on ? '' : 'none'; if (!on) this.tooltip.hide(); }
 
   setFloor(name: string, sub: string) { this.floorEl.innerHTML = `${name}<small>${sub}</small>`; }
-  setResources(ember: number, pages: number, run: number) { this.resEl.innerHTML = `<span><span class="ember">◆</span> ${ember} ember</span><span class="muted">${pages}/12 pages</span><span class="muted">Descent ${run}</span>`; }
+  setResources(ember: number, pages: number, run: number) { this.resEl.innerHTML = `<span title="Ember carried this descent. Climb out at any stair to bank it; it buys upgrades at the Vigil."><span class="ember">◆</span> ${ember} ember</span><span class="muted" title="Choir Pages found, kept between descents. Twelve in all.">${pages}/12 pages</span><span class="muted" title="How many times you have gone down.">Descent ${run}</span>`; }
 
   setPhase(phase: Phase, acted: number, total: number, showTip = false) {
     const combat = phase === 'player' || phase === 'enemy';
@@ -80,7 +80,7 @@ export class Hud {
       const st = u.statuses.map(s => `<span title="${s.kind}">${({ burning: '🔥', rooted: '📌', marked: '🎯', guarded: '✋', bulwark: '⛨', hidden: '💨' } as Record<string, string>)[s.kind] ?? s.kind}</span>`).join('');
       d.innerHTML = `<div class="statuses">${st}</div><div class="name"><span>${first}</span><span class="muted">${u.hp}/${u.maxHp}</span></div><div class="title">${u.def.title ?? ''}</div>
         <div class="bar"><i style="width:${100 * u.hp / u.maxHp}%"></i></div>
-        <div class="stats"><span>⛨ <b>${arm}</b></span><span>⚔ <b>${u.def.attack + (u.mods['attack'] ?? 0)}</b></span><span>👣 <b>${phase === 'player' ? u.moveLeft : u.move + (u.mods['move'] ?? 0)}</b></span></div>
+        <div class="stats"><span title="Armour: taken off every hit">⛨ <b>${arm}</b></span><span title="Attack damage">⚔ <b>${u.def.attack + (u.mods['attack'] ?? 0)}</b></span><span title="Movement left this turn (tiles)">👣 <b>${phase === 'player' ? u.moveLeft : u.move + (u.mods['move'] ?? 0)}</b></span></div>
         ${phase === 'player' && u.alive ? `<div class="acted">${u.acted ? 'DONE' : canUndo(u) ? '<u>undo move</u>' : ''}</div>` : ''}`;
       d.onclick = (ev) => { const t = ev.target as HTMLElement; if (t.tagName === 'U') { this.onUndo?.(u.id); return; } this.onSelect?.(u.id); };
       d.onmouseenter = (ev) => this.tooltip.show(`<h4>${u.name}</h4><div class="muted">${u.def.title}</div><div class="row"><span>HP</span><b>${u.hp}/${u.maxHp}</b></div><div class="row"><span>Armour</span><b>${arm}</b></div><div class="row"><span>Attack</span><b>${u.def.attack + (u.mods['attack'] ?? 0)}${u.def.attackRange > 1 ? ` (range ${u.def.attackRange})` : ''}</b></div><div class="row"><span>Move</span><b>${u.move + (u.mods['move'] ?? 0)}</b></div>${u.boons.length ? `<div class="hint">Boons: ${u.boons.map(b => BOONS.find(x => x.id === b)?.name ?? b).join(', ')}</div>` : ''}`, ev.clientX, ev.clientY);

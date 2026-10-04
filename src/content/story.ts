@@ -131,7 +131,7 @@ export const CHOIR_PAGES: Record<number, string> = {
 /** Hub dialogue, selected by the game layer from flags and run count. Each entry: speaker, condition key, lines. */
 export interface HubLine { speaker: 'warden' | 'teodor' | 'pim' | 'anneke'; when: string; text: string; once?: boolean }
 export const HUB_LINES: HubLine[] = [
-  { speaker: 'warden', when: 'run:1', text: 'You\'re the Candle. Lantern\'s lit. Three rules: go down slow, don\'t count the stairs, come back. The third one\'s the hard one.', once: true },
+  { speaker: 'warden', when: 'run:1', text: 'You\'re the Candle: first time down. Pick three; that\'s your Lantern. The job is ember. Bring it up and the city eats; climb out at any stair and I bank it. Three rules: go down slow, don\'t count the stairs, come back. The third one\'s the hard one.', once: true },
   { speaker: 'warden', when: 'deaths:1', text: 'Spent, not lost. I\'ll write them tonight. Pick your Lantern.', once: true },
   { speaker: 'warden', when: 'lost', text: '{lost}. I\'ll write it tonight, in the big book with the red cover. You came back, which is the rule. Sit a minute before you choose again.' },
   { speaker: 'warden', when: 'deaths:3', text: 'You read the Book. Good. Everyone should. There are two names in my hand near the front. I don\'t need to tell you how I know their handwriting was worse than mine.', once: true },
@@ -140,7 +140,7 @@ export const HUB_LINES: HubLine[] = [
   { speaker: 'warden', when: 'flag:reached_hour2', text: 'The Ossuary. Hold your lines and kill the singers first. If you see a woman made of candles, do not let her hold your hand.', once: true },
   { speaker: 'warden', when: 'ascended:1', text: 'You came back. That\'s the rule people forget. Bank it with Teodor and sleep.', once: true },
   { speaker: 'warden', when: 'default', text: 'Go down slow.' },
-  { speaker: 'teodor', when: 'run:1', text: 'I make light. Other people decide what to do in it. Bring me ember and I\'ll make you more of it. Don\'t ask me for a sword; I\'d only hurt myself.', once: true },
+  { speaker: 'teodor', when: 'run:1', text: 'I make light. Other people decide what to do in it. Bring me ember and I\'ll make you more of it: wider lanterns, warmer coats, a spare breath. Don\'t ask me for a sword; I\'d only hurt myself.', once: true },
   { speaker: 'teodor', when: 'ember:5', text: 'That\'s real ember, that. Warm as a hand. I could widen your lantern\'s throw with that. Or stitch you a Wick: one more breath when you\'ve none left.', once: true },
   { speaker: 'teodor', when: 'default', text: 'Lantern\'s a lantern. Light goes where you point it. The trick is deciding where to point.' },
   { speaker: 'pim', when: 'run:1', text: 'Are you going down? Bring back something warm. Mum used to.', once: true },

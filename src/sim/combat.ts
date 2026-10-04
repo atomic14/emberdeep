@@ -305,8 +305,8 @@ export function endPlayerTurn(l: Level, cs: CombatState, ev: Ev): void {
     if (hasStatus(e, 'rooted')) { // rooted units keep aiming at an adjacent target if any, else wait
       const adj = living(l, 'party').find(p => cheb(p.pos, e.pos) === 1);
       if (adj && e.def.attackRange === 1) { e.intent = { kind: e.def.ai === 'grab' ? 'grab' : 'strike', dir: dirTo(e.pos, adj.pos), range: 1, damage: e.def.attack, label: `Strike ${e.def.attack}` }; }
-      else if (e.def.attackRange > 1) { const d = living(l, 'party').map(p => straightLine(l, e.pos, p.pos, e.def.attackRange)).find(x => x); e.intent = d ? { kind: 'shoot', dir: d, range: e.def.attackRange, damage: e.def.attack, label: `Shoot ${e.def.attack}` } : { kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Pinned' }; }
-      else e.intent = { kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Pinned' };
+      else if (e.def.attackRange > 1) { const d = living(l, 'party').map(p => straightLine(l, e.pos, p.pos, e.def.attackRange)).find(x => x); e.intent = d ? { kind: 'shoot', dir: d, range: e.def.attackRange, damage: e.def.attack, label: `Shoot ${e.def.attack}` } : { kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Rooted: cannot move' }; }
+      else e.intent = { kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Rooted: cannot move' };
       ev.push({ t: 'intent', id: e.id, intent: e.intent });
       continue;
     }

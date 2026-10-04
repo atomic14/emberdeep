@@ -44,6 +44,20 @@ export class Screens {
     (d.querySelector('#wipe') as HTMLButtonElement | null)?.addEventListener('click', o.onWipe);
   }
 
+  /** Shown once before the first visit to the Vigil: what the game is, in four short paragraphs. */
+  prologue(): Promise<void> {
+    return new Promise(res => {
+      const d = this.open();
+      d.innerHTML = `<div class="card panel" style="width:min(640px,92vw)"><h1 style="font-size:26px">Caddow</h1>
+        <p>Two hundred years ago the sun went grey. The mountain city of Caddow survived because the stones at the bottom of its old well were warm. They call the stone <b>ember</b>. One fist of it heats a house for a winter.</p>
+        <p>The <b>Lamplighters</b> go down for it. You lead them: three at a time, a group the guild calls a <b>Lantern</b>. Below the city the Deep goes down in <b>Hours</b>; each Hour is two floors and a <b>Keeper</b> that was once a person.</p>
+        <p>Every staircase is a choice: go deeper for more ember, or <b>climb out</b> with what you carry. Ember you bring home buys the guild better gear for the next descent. Lamplighters who die are written in the Book of Spent, and new ones volunteer.</p>
+        <p class="muted" style="font-style:italic">Go down slow.</p>
+        <div class="row-btns"><button class="primary" id="ok">To the Vigil</button></div></div>`;
+      (d.querySelector('#ok') as HTMLButtonElement).onclick = () => { this.close(); res(); };
+    });
+  }
+
   /** The Vigil. Shows NPC lines, lets the player pick a Lantern of three, buy upgrades, read the Book. */
   hub(meta: Meta, lines: { speaker: string; text: string }[], o: { onStart: (party: ClassId[]) => void; onBuy: (id: string) => void; onBook: () => void; onPages: () => void; onTitle: () => void; onSettings: () => void }) {
     const d = this.open();
@@ -54,17 +68,17 @@ export class Screens {
     const render = () => {
       d.innerHTML = `<div class="hub">
         <div class="col">
-          <div class="box panel"><h2>The Vigil</h2>
+          <div class="box panel"><h2>The Vigil <span class="muted" style="font-family:var(--serif);font-size:14px;letter-spacing:0;font-weight:400">· the Lamplighters' hall at the top of the Shaft</span></h2>
             ${lines.map(l => `<div class="npc"><div class="who">${names[l.speaker] ?? l.speaker}</div><div class="say">${l.text}</div></div>`).join('')}
           </div>
-          <div class="box panel"><h2>Teodor's Workshop <span class="muted" style="font-family:var(--serif);font-size:14px;letter-spacing:0;font-weight:400">· <span class="ember">◆</span> ${meta.emberBanked} ember banked</span></h2>
+          <div class="box panel"><h2>Teodor's Workshop <span class="muted" style="font-family:var(--serif);font-size:14px;letter-spacing:0;font-weight:400">· <span class="ember">◆</span> ${meta.emberBanked} ember banked</span></h2><p class="muted" style="margin:0 0 10px;font-size:14px;font-style:italic">Ember you climb out with is banked here and buys permanent upgrades.</p>
             <div class="roster">${UPGRADES.map(u => { const lvl = meta.upgrades[u.id] ?? 0; const maxed = lvl >= u.max; return `<button class="upgrade panel" data-up="${u.id}" ${maxed || meta.emberBanked < u.cost ? 'disabled' : ''}><span><span class="n">${u.name}${u.max > 1 ? ` <span class="muted">${lvl}/${u.max}</span>` : ''}</span><br><span class="t">${u.desc}</span></span><span class="cost">${maxed ? 'DONE' : `◆ ${u.cost}`}</span></button>`; }).join('')}</div>
           </div>
         </div>
         <div class="col">
-          <div class="box panel"><h2>Your Lantern <span class="muted" style="font-family:var(--serif);font-size:14px;letter-spacing:0;font-weight:400">· choose three</span></h2>
+          <div class="box panel"><h2>Your Lantern <span class="muted" style="font-family:var(--serif);font-size:14px;letter-spacing:0;font-weight:400">· choose three</span></h2><p class="muted" style="margin:0 0 10px;font-size:14px;font-style:italic">A Lantern is the group of three you take down. Each has a role; hover a name in the descent for details.</p>
             <div class="roster">${alive.map(r => { const def = PARTY_DEFS[r.classId]; return `<button class="recruit panel ${picked.has(r.classId) ? 'picked' : ''}" data-c="${r.classId}"><span><span class="n">${r.name}</span><br><span class="t">${def.title} · ${def.hp} HP · ⛨${def.armour} · ⚔${def.attack}${def.attackRange > 1 ? ' ranged' : ''}</span><br><span class="abil">${def.abilities.map(a => ABILITIES[a].name).join(' · ')}</span></span><span>${picked.has(r.classId) ? '●' : '○'}</span></button>`; }).join('')}</div>
-            <div class="row-btns"><button class="primary" id="start" ${picked.size === Math.min(3, alive.length) ? '' : 'disabled'}>Light a Candle</button><button id="book">The Book</button><button id="pages">Choir Pages (${meta.pagesFound.length})</button><button id="settings">Settings</button><button id="title">Leave</button></div>
+            <div class="row-btns"><button class="primary" id="start" title="Begin a descent with the three you chose" ${picked.size === Math.min(3, alive.length) ? '' : 'disabled'}>Light a Candle · begin</button><button id="book">The Book</button><button id="pages">Choir Pages (${meta.pagesFound.length})</button><button id="settings">Settings</button><button id="title">Leave</button></div>
           </div>
         </div></div>`;
       d.querySelectorAll<HTMLButtonElement>('[data-c]').forEach(b => b.onclick = () => { const c = b.dataset.c as ClassId; if (picked.has(c)) picked.delete(c); else if (picked.size < 3) picked.add(c); render(); });
@@ -79,7 +93,7 @@ export class Screens {
   boon(unitName: string, boons: Boon[]): Promise<Boon> {
     return new Promise(res => {
       const d = this.open('clear');
-      d.innerHTML = `<div class="card panel" style="width:min(820px,94vw)"><h2>A breath between fights</h2><p class="muted">${unitName} may take one.</p><div class="boons">${boons.map((b, i) => `<button class="boon panel" data-i="${i}"><h3>${b.name}</h3><div class="desc">${b.desc}</div>${b.classId ? `<div class="for">${PARTY_DEFS[b.classId]?.title ?? ''}</div>` : '<div class="for muted">ANYONE</div>'}</button>`).join('')}</div></div>`;
+      d.innerHTML = `<div class="card panel" style="width:min(820px,94vw)"><h2>A breath between fights</h2><p class="muted">Choose one boon. It lasts for this descent. The name in bold is who gets it.</p><div class="boons">${boons.map((b, i) => `<button class="boon panel" data-i="${i}"><h3>${b.name}</h3><div class="desc">${b.desc}</div>${b.classId ? `<div class="for">${PARTY_DEFS[b.classId]?.title ?? ''}</div>` : '<div class="for muted">ANYONE</div>'}</button>`).join('')}</div></div>`;
       d.querySelectorAll<HTMLButtonElement>('[data-i]').forEach(b => b.onclick = () => { this.close(); res(boons[+b.dataset.i!]); });
     });
   }
@@ -118,7 +132,7 @@ export class Screens {
   }
   pages(found: number[], onClose: () => void) {
     const d = this.open();
-    d.innerHTML = `<div class="card panel pages"><h2>Choir Pages <span class="muted" style="font-family:var(--serif);font-size:14px;letter-spacing:0;font-weight:400">· ${found.length} of 12</span></h2>${found.length ? [...found].sort((a, b) => a - b).map(i => `<p><b class="muted" style="font-style:normal">${i}.</b> ${CHOIR_PAGES[i]}</p>`).join('') : '<p class="muted">None yet. They are hidden in dead-end rooms. Thorough Lamplighters find them.</p>'}<div class="row-btns"><button id="ok">Close</button></div></div>`;
+    d.innerHTML = `<div class="card panel pages"><h2>Choir Pages <span class="muted" style="font-family:var(--serif);font-size:14px;letter-spacing:0;font-weight:400">· ${found.length} of 12</span></h2><p class="muted" style="font-style:italic">Notes left in the Deep by the Choir, sixty years ago. They are kept between descents. Find all twelve and you will understand what is down there well enough to do something about it.</p>${found.length ? [...found].sort((a, b) => a - b).map(i => `<p><b class="muted" style="font-style:normal">${i}.</b> ${CHOIR_PAGES[i]}</p>`).join('') : '<p class="muted">None yet. They are hidden in dead-end rooms. Thorough Lamplighters find them.</p>'}<div class="row-btns"><button id="ok">Close</button></div></div>`;
     (d.querySelector('#ok') as HTMLButtonElement).onclick = () => { this.close(); onClose(); };
   }
   book(meta: Meta, onClose: () => void) {
@@ -138,14 +152,15 @@ export class Screens {
       const d = this.open();
       d.innerHTML = `<div class="card panel book"><h1 style="font-size:26px">The Lantern goes out</h1><p class="muted" style="text-align:center;font-style:italic">${causeLine}</p>
         <p class="muted" style="margin-top:18px">The Warden writes:</p>${entries.map(e => `<div class="entry">${e}</div>`).join('')}
-        <div class="row-btns"><button class="primary" id="ok">Spent, not lost</button></div></div>`;
+        <p class="muted" style="font-style:italic;margin-top:14px">The Vigil keeps what you learned: the Book, the Choir Pages and Teodor's upgrades. New Lamplighters volunteer for the next descent.</p>
+        <div class="row-btns"><button class="primary" id="ok">Spent, not lost · back to the Vigil</button></div></div>`;
       (d.querySelector('#ok') as HTMLButtonElement).onclick = () => { this.close(); res(); };
     });
   }
   ascended(ember: number, hour: number): Promise<void> {
     return new Promise(res => {
       const d = this.open();
-      d.innerHTML = `<div class="card panel"><h1 style="font-size:26px">You came back</h1><p style="text-align:center">The Great Lamp is relit from your lanterns. The city eats tonight.</p><p style="text-align:center"><span class="ember">◆ ${ember} ember</span> banked · reached Hour ${['I', 'II', 'III', 'IV'][hour - 1]}</p><div class="row-btns"><button class="primary" id="ok">To the Vigil</button></div></div>`;
+      d.innerHTML = `<div class="card panel"><h1 style="font-size:26px">You came back</h1><p style="text-align:center">The Great Lamp is relit from your lanterns. The city eats tonight. Your ember is banked; wounds heal at the Vigil.</p><p style="text-align:center"><span class="ember">◆ ${ember} ember</span> banked · reached Hour ${['I', 'II', 'III', 'IV'][hour - 1]}</p><div class="row-btns"><button class="primary" id="ok">To the Vigil</button></div></div>`;
       (d.querySelector('#ok') as HTMLButtonElement).onclick = () => { this.close(); res(); };
     });
   }
@@ -190,14 +205,15 @@ export class Screens {
     d.innerHTML = `<div class="card panel" style="width:min(680px,92vw)"><h2>How to play</h2>
       <p>Left-click does the obvious thing. Hover first; the game shows you what will happen before you commit.</p>
       <div class="keys">
-        <b>EXPLORING</b><span>Click a tile to walk the Lantern there. Click a door, chest or glowing thing to use it. <i>Space</i> explores to the nearest unseen place.</span>
+        <b>THE JOB</b><span>Lead three Lamplighters (your <b>Lantern</b>) down the Deep. Each <b>Hour</b> is two floors and a <b>Keeper</b>. Find the stairs on every floor. At any stair you can <b>climb out</b> with the <b>ember</b> you carry, which buys upgrades at the Vigil, or go deeper for more. Fall, and the Vigil remembers you.</span>
+        <b>EXPLORING</b><span>Click a tile to walk the Lantern there. Click a door, chest or glowing thing to use it. <i>Space</i> or the Explore button walks to everything unseen and stops when something matters.</span>
         <b>COMBAT</b><span>Turns alternate: your whole Lantern acts, then the Deep acts. Each Lamplighter may <b>move</b> (blue tiles) and take <b>one action</b>: attack (click an enemy) or an ability (click it, or press 2–4, then click a target).</span>
         <b>END TURN</b><span>Nothing happens until you press <b>End Turn</b> (bottom right, or <i>Space</i>). The button shows how many Lamplighters have acted and pulses when everyone has. You can switch on automatic turn ending in Settings.</span>
         <b>RED TILES</b><span>Where enemies will strike at the start of their turn. They decide first and commit. Step out of red, or push them so they hit something else. Pushing an enemy moves its attack with it.</span>
         <b>UNDO</b><span>Movement can be undone (right-click, Z, or the undo link) until the Lamplighter acts.</span>
                 <b>THE ROOM</b><span>Water slows and conducts lightning. Oil burns and spreads. Chasms are final. Braziers fall over. Doors shut. Pillars block sight and crumble. The thing in front of you is not the only thing in the room.</span>
         <b>CAMERA</b><span>Wheel zooms. WASD or arrows pan. <i>F</i> toggles following. <i>Tab</i> cycles Lamplighters. <i>Esc</i> cancels, then opens the menu.</span>
-        <b>STAIRS</b><span>At every staircase you may go deeper or <b>Ascend</b> with the ember you carry. Coming back is the hard rule.</span>
+        <b>STAIRS</b><span>At every staircase you may go deeper or <b>Ascend</b> (climb out) with the ember you carry. Ascending ends the descent as a success: the ember is banked and everyone heals. Coming back is the hard rule.</span>
       </div>
       <div class="row-btns"><button class="primary" id="ok">Go down slow</button></div></div>`;
     (d.querySelector('#ok') as HTMLButtonElement).onclick = () => { this.close(); onClose(); };

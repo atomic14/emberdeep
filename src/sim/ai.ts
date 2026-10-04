@@ -101,7 +101,7 @@ export function enemyAct(l: Level, u: Unit, rng: Rng, ev: Ev, turn: number): voi
     case 'melee':
     case 'grab': {
       const near = nearestParty(l, u);
-      if (!near) { setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Waiting' }); return; }
+      if (!near) { setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Waiting (no one in reach)' }); return; }
       if (near.dist >= 999) { setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Cannot reach you' }); return; }
       if (cheb(u.pos, near.target.pos) > 1 && budget > 0) {
         const path = findPath(l, u.pos, near.target.pos, { unit: u, adjacent: true, openDoors: opens });
@@ -151,7 +151,7 @@ export function enemyAct(l: Level, u: Unit, rng: Rng, ev: Ev, turn: number): voi
       if (allies2.length) { setIntent({ kind: 'heal', dir: dirTo(u.pos, allies2[0].pos), range: 3, damage: 2, label: `Heal ${allies2[0].name} 2`, targetId: allies2[0].id }); return; }
       const tgt = adjacentTarget(l, u);
       if (tgt) { setIntent(strike(dirTo(u.pos, tgt.pos), u.def.attack)); return; }
-      setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Singing' });
+      setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Keeping back (no one to heal)' });
       return;
     }
     case 'ferryman': {
@@ -169,28 +169,28 @@ export function enemyAct(l: Level, u: Unit, rng: Rng, ev: Ev, turn: number): voi
       const near = nearestParty(l, u);
       if (near && budget > 0) { const path = findPath(l, u.pos, near.target.pos, { unit: u, adjacent: true }); if (path) moveAlong(l, u, path, budget, ev); }
       const t2 = adjacentTarget(l, u);
-      if (t2) setIntent(strike(dirTo(u.pos, t2.pos), u.def.attack)); else setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Hauling the chain' });
+      if (t2) setIntent(strike(dirTo(u.pos, t2.pos), u.def.attack)); else setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Hauling the chain (no target)' });
       return;
     }
     case 'tallow': {
       // Heals every Spent within 3 by 3; every 3rd turn summons. Strikes if adjacent.
       const tgt = adjacentTarget(l, u);
-      if (turn % 3 === 0) { setIntent({ kind: 'summon', dir: { x: 0, y: 0 }, range: 3, damage: 0, label: 'Wakes a Spent' }); return; }
+      if (turn % 3 === 0) { setIntent({ kind: 'summon', dir: { x: 0, y: 0 }, range: 3, damage: 0, label: 'Wakes a Spent from the wall' }); return; }
       if (tgt && turn % 3 === 1) { setIntent(strike(dirTo(u.pos, tgt.pos), u.def.attack)); return; }
-      setIntent({ kind: 'heal', dir: { x: 0, y: 0 }, range: 3, damage: 3, label: 'Keeps them warm: heal all Spent within 3 by 3' });
+      setIntent({ kind: 'heal', dir: { x: 0, y: 0 }, range: 3, damage: 3, label: 'Heals every Spent within 3 by 3' });
       return;
     }
     case 'prelate': {
-      if (turn % 3 === 0) { setIntent({ kind: 'summon', dir: { x: 0, y: 0 }, range: 2, damage: 0, label: 'Calls a Stoker' }); return; }
+      if (turn % 3 === 0) { setIntent({ kind: 'summon', dir: { x: 0, y: 0 }, range: 2, damage: 0, label: 'Calls a Stoker to his side' }); return; }
       const party = living(l, 'party'); let dir: Vec2 | null = null;
       for (const p of party) { dir = straightLine(l, u.pos, p.pos, 4); if (dir) break; }
       if (!dir && budget > 0) { const fire = findFiringTile(l, u, 4, budget); if (fire) { moveAlong(l, u, fire.path, budget, ev); for (const p of party) { dir = straightLine(l, u.pos, p.pos, 4); if (dir) break; } } }
       if (dir) { u.facing = dir; setIntent({ kind: 'shoot', dir, range: 4, damage: 3, label: 'Kindling: 3 fire along the line' }); return; }
-      setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Praying' });
+      setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Praying (no target in line)' });
       return;
     }
     case 'hearth': {
-      setIntent({ kind: 'summon', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Dreams' });
+      setIntent({ kind: 'summon', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Dreaming: wakes two fevers' });
       return;
     }
   }

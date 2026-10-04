@@ -91,7 +91,7 @@ export class Game {
     this.audio.playMusic('title');
     this.screens.title({
       hasRun: !!loadRun(), meta: this.meta,
-      onNew: () => this.showHub(), onContinue: () => this.continueRun(),
+      onNew: () => { if (!this.meta.flags['prologue']) { this.meta.flags['prologue'] = true; saveMeta(this.meta); this.screens.prologue().then(() => this.showHub()); } else this.showHub(); }, onContinue: () => this.continueRun(),
       onBook: () => this.screens.book(this.meta, () => this.showTitle()), onHelp: () => this.screens.help(() => this.showTitle()),
       onSettings: () => this.screens.settings(this.meta.settings, s => { this.audio.setVolumes(s.sfx, s.music); saveMeta(this.meta); }, () => this.showTitle()),
       onWipe: async () => { if (await this.screens.confirm('Forget everything?', 'The Book, the roster, the pages, the ember. All of it.', 'Forget', 'Keep')) { wipeAll(); this.meta = loadMeta(); } this.showTitle(); },
@@ -181,10 +181,10 @@ export class Game {
     if (resumed) { if (this.cs.phase === 'player' || this.cs.phase === 'enemy') { this.cs.phase = 'player'; this.audio.playMusic(isKeeper ? 'combat2' : 'combat'); } this.refreshHud(); this.refreshOverlays(); this.frameCombat(); return; }
     if (run.floor === 1 && !isKeeper || run.hour === 4) {
       this.meta.flags['reached_hour' + run.hour] = true; this.meta.bestHour = Math.max(this.meta.bestHour, run.hour); saveMeta(this.meta);
-      await this.screens.intro(`Hour ${hourNum} · ${HOUR_NAMES[run.hour]}`, HOUR_INTRO[run.hour]);
+      await this.screens.intro(`Hour ${hourNum} · ${HOUR_NAMES[run.hour]}`, HOUR_INTRO[run.hour], run.hour === 4 ? 'The last Hour. There is only the Hearth.' : `Floor 1 of ${FLOORS_PER_HOUR}, then the Keeper. Find the stairs; at every stair you may climb out with your ember.`);
       const l = party[0]; if (l) this.bark(l, 'descend');
     } else if (isKeeper) {
-      await this.screens.intro(`Hour ${hourNum} · The Keeper`, 'The galleries open out. Something has been waiting at the bottom of the stair.');
+      await this.screens.intro(`Hour ${hourNum} · The Keeper`, 'The galleries open out. Something has been waiting at the bottom of the stair.', 'A Keeper fight: defeat it and a stair opens to the next Hour. Keepers cannot be pushed.');
     }
     if (run.hour === 4) { // the Warm Hour: everything is lit and aware
       const ev: SimEvent[] = []; startCombat(this.level, this.cs, living(this.level, 'enemy'), ev, 'The dreaming notices you.'); await this.presenter.play(ev); this.afterEvents();
@@ -668,7 +668,7 @@ export class Game {
     if (keeper.def.id === 'prelate' && keeper.alive && keeper.hp <= 12 && !run.flags['prelate_offered']) {
       run.flags['prelate_offered'] = true; this.busyFlow = true;
       const c = await this.screens.choice('The Prelate lowers his staff', '"Enough. Listen. Eleven thousand people. Forty towns. The thing below does not die of this; it only hurts, and the ember grows, and the children live. Take what you came for and go up, and I will not tell the Church you were here."\n\nHe is bleeding light.', [
-        { text: 'Take the deal.', stake: '+4 ember. The fight ends. The fires stay lit. Some doors close.' },
+        { text: 'Take the deal.', stake: '+4 ember. The fight ends now. The fires stay lit, so the ending where you put them out will be closed to you.' },
         { text: 'Refuse.', stake: 'Finish it. Someone will have to feed it tonight.' },
       ]);
       this.busyFlow = false;

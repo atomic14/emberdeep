@@ -58,3 +58,25 @@ export function newRun(meta: Meta, classIds: ClassId[], seed = Date.now() % 1000
   });
   return { seed, hour: 1, floor: 1, party, ember: 0, relics: [], flags: {}, eventsSeen: [], shrineHour: 0, pagesThisRun: [], keepersSlain: [], wickUsed: false, turnsTaken: 0 };
 }
+
+/** Mid-floor snapshot so a refresh resumes exactly where the player was. */
+import type { Level, Unit } from '../sim/types';
+import { ENEMY_DEFS } from '../content/units';
+const FLOORKEY = 'emberdeep.floor.v1';
+export interface FloorSave { hour: number; floor: number; seed: number; level: any; cs: { phase: string; turn: number; aware: string[]; lanternRadius: number }; leaderId?: string; nextId: number; shrineHour: number }
+export function saveFloor(f: FloorSave | undefined) {
+  try {
+    if (!f) { localStorage.removeItem(FLOORKEY); return; }
+    const level = { ...f.level, units: (f.level.units as Unit[]).map(u => ({ ...u, def: u.def.id })) };
+    localStorage.setItem(FLOORKEY, JSON.stringify({ ...f, level }));
+  } catch (e) { console.warn('floor save failed', e); }
+}
+export function loadFloor(): FloorSave | undefined {
+  try {
+    const s = localStorage.getItem(FLOORKEY); if (!s) return undefined;
+    const f = JSON.parse(s) as FloorSave;
+    const L = f.level as Level;
+    L.units = (L.units as any[]).map(u => ({ ...u, def: PARTY_DEFS[u.def] ?? ENEMY_DEFS[u.def] })).filter(u => u.def);
+    return f;
+  } catch { return undefined; }
+}

@@ -47,6 +47,7 @@ export class ActorView {
   private hitFlash = 0;
   private mats: THREE.MeshStandardMaterial[] = [];
   hearth = false;
+  custom = false;
   private life = 0;
 
   constructor(public unit: Unit, assets: Assets, parent: THREE.Object3D, uiLayer: HTMLElement) {
@@ -54,6 +55,9 @@ export class ActorView {
     const gltf = assets.chars.get(this.spec.char) ?? assets.chars.get('Skeleton_Minion')!;
     if (unit.def.model === 'hearth') {
       this.model = makeHearth(); this.hearth = true;
+      this.mixer = new THREE.AnimationMixer(this.model);
+    } else if (unit.def.model === 'rat' || unit.def.model === 'spider') {
+      this.model = unit.def.model === 'rat' ? makeRat() : makeSpider(); this.custom = true;
       this.mixer = new THREE.AnimationMixer(this.model);
     } else {
       this.model = skeletonClone(gltf.scene);
@@ -153,6 +157,7 @@ export class ActorView {
 
   update(dt: number, screen: (v: THREE.Vector3) => { x: number; y: number; visible: boolean }, visible: boolean) {
     this.mixer.update(dt);
+    if (this.custom) { this.life += dt; if (this.tween) this.model.position.y = Math.abs(Math.sin(this.life * 18)) * 0.35; else this.model.position.y = 0; this.model.rotation.z = this.tween ? Math.sin(this.life * 18) * 0.08 : 0; if (this.dead) { this.model.scale.y = Math.max(0.05, this.model.scale.y - dt * 2); this.model.rotation.z = Math.min(1.2, this.model.rotation.z + dt * 3); } }
     if (this.hearth) { this.life += dt; const breathe = 1 + 0.06 * Math.sin(this.life * 1.4); const core = this.model.getObjectByName('core'); const halo = this.model.getObjectByName('halo'); const light = this.model.getObjectByName('light') as THREE.PointLight | undefined; if (core) core.scale.setScalar(breathe); if (halo) { halo.scale.setScalar(1.1 + 0.15 * Math.sin(this.life * 0.9)); halo.rotation.y += dt * 0.2; halo.rotation.x += dt * 0.07; } if (light) light.intensity = this.dead ? Math.max(0, light.intensity - dt * 60) : 70 + 25 * Math.sin(this.life * 1.4); if (this.dead) { this.model.scale.multiplyScalar(Math.max(0, 1 - dt * 0.6)); } }
     if (this.tween) {
       const tw = this.tween; tw.t += dt;
@@ -186,5 +191,34 @@ function makeHearth(): THREE.Object3D {
     const a = (i / 7) * Math.PI * 2; shard.position.set(Math.cos(a) * 2.9, 0.6 + Math.random() * 2.5, Math.sin(a) * 2.9); shard.rotation.set(Math.random() * 3, Math.random() * 3, 0); shard.castShadow = true; g.add(shard);
   }
   const light = new THREE.PointLight(0xff8a30, 70, 40, 2); light.name = 'light'; light.position.y = 3; g.add(light);
+  return g;
+}
+
+function makeRat(): THREE.Object3D {
+  const g = new THREE.Group();
+  const fur = new THREE.MeshStandardMaterial({ color: 0x8a6a50, emissive: 0x1a1210, roughness: 0.95, flatShading: true });
+  const pink = new THREE.MeshStandardMaterial({ color: 0x8a5a60, roughness: 0.9 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), fur); body.scale.set(1, 0.75, 1.5); body.position.y = 0.36; body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), fur); head.scale.set(1, 0.9, 1.3); head.position.set(0, 0.42, 0.72); head.castShadow = true; g.add(head);
+  for (const sx of [-1, 1]) { const ear = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), pink); ear.position.set(sx * 0.18, 0.62, 0.62); g.add(ear); }
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), pink); nose.position.set(0, 0.4, 1.05); g.add(nose);
+  for (const sx of [-1, 1]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshStandardMaterial({ color: 0x220000, emissive: 0xff3020, emissiveIntensity: 2 })); eye.position.set(sx * 0.12, 0.5, 0.92); g.add(eye); }
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 1.1, 6), pink); tail.position.set(0, 0.25, -0.9); tail.rotation.x = Math.PI / 2 - 0.5; g.add(tail);
+  g.scale.setScalar(1.15);
+  return g;
+}
+function makeSpider(): THREE.Object3D {
+  const g = new THREE.Group();
+  const chitin = new THREE.MeshStandardMaterial({ color: 0x3a2d48, emissive: 0x14101c, roughness: 0.6, metalness: 0.1, flatShading: true });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), chitin); body.position.set(0, 0.7, 0.1); body.castShadow = true; g.add(body);
+  const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.58, 10, 8), chitin); abdomen.scale.set(1, 0.9, 1.25); abdomen.position.set(0, 0.8, -0.7); abdomen.castShadow = true; g.add(abdomen);
+  const mark = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshStandardMaterial({ color: 0x9fb3c8, roughness: 0.5 })); mark.scale.set(1, 0.3, 1.4); mark.position.set(0, 1.3, -0.7); g.add(mark);
+  for (let i = 0; i < 4; i++) for (const sx of [-1, 1]) {
+    const leg = new THREE.Group();
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.9, 5), chitin); upper.position.set(0.4, 0.3, 0); upper.rotation.z = -1.1; leg.add(upper);
+    const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.9, 5), chitin); lower.position.set(0.95, -0.05, 0); lower.rotation.z = 0.9; leg.add(lower);
+    leg.position.set(sx * 0.3, 0.7, 0.35 - i * 0.28); leg.rotation.y = sx > 0 ? (i - 1.5) * 0.35 : Math.PI - (i - 1.5) * 0.35; leg.scale.x = 1; g.add(leg);
+  }
+  for (let i = 0; i < 4; i++) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), new THREE.MeshStandardMaterial({ color: 0x200000, emissive: 0xff4a30, emissiveIntensity: 2.2 })); eye.position.set((i - 1.5) * 0.14, 0.78 + (i % 2) * 0.08, 0.5); g.add(eye); }
   return g;
 }

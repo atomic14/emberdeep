@@ -24,6 +24,7 @@ export interface CombatState {
 
 let nextUnitId = 1;
 export function resetIds(n = 1) { nextUnitId = n; }
+export function currentId() { return nextUnitId; }
 export function makeUnit(def: UnitDef, pos: Vec2, name?: string): Unit {
   return {
     id: `${def.id}_${nextUnitId++}`, def, name: name ?? def.name, faction: def.faction, pos: { ...pos }, facing: { x: 0, y: 1 },

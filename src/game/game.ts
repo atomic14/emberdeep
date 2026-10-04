@@ -8,14 +8,14 @@ import { generateFloor } from '../sim/dungeon';
 import { HOUR_NAMES, KEEPER_FOR_HOUR } from '../sim/dungeon';
 import {
   newCombatState, type CombatState, startCombat, moveUnit, undoMove, canUndo, basicAttack, attackTargets, attackDamage, useAbility, abilityTargets, abilityFootprint,
-  endPlayerTurn, exploreStep, threatTiles, moveRange, interact, refreshVisibility, resetIds, makeUnit, intentTiles, enemiesThatSee,
+  endPlayerTurn, exploreStep, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee,
 } from '../sim/combat';
 import { Rng } from '../sim/rng';
 import { PARTY_DEFS, ENEMY_DEFS } from '../content/units';
 import { ABILITIES } from '../content/abilities';
 import { boonsFor, BOONS, type Boon } from '../content/boons';
 import { EVENTS, CHOIR_PAGES, KEEPER_LINES, HOUR_INTRO, BARKS, epitaph, ENDINGS, type EventCard, type EventChoice } from '../content/story';
-import { loadMeta, saveMeta, loadRun, saveRun, newRun, recruit, wipeAll, UPGRADES, type Meta, type Run } from './state';
+import { loadMeta, saveMeta, loadRun, saveRun, newRun, recruit, wipeAll, UPGRADES, saveFloor, loadFloor as loadFloorSave, type Meta, type Run } from './state';
 import { View } from '../render/scene';
 import { Presenter } from '../render/presenter';
 import { Hud } from '../ui/hud';
@@ -79,7 +79,7 @@ export class Game {
       const party = (q.get('party') ?? 'knight,barbarian,mage').split(',') as ClassId[];
       for (const c of party) if (!this.meta.roster.find(r => r.classId === c && r.alive)) this.meta.roster.push({ classId: c, name: PARTY_DEFS[c].name, alive: true, runs: 0, kills: 0, original: true });
       this.meta.settings.shownHelp = true;
-      this.run = newRun(this.meta, party, +(q.get('seed') ?? 42));
+      saveFloor(undefined); this.run = newRun(this.meta, party, +(q.get('seed') ?? 42));
       this.run.hour = +(q.get('hour') ?? 1) as Run['hour']; this.run.floor = q.has('keeper') ? FLOORS_PER_HOUR + 1 : +(q.get('floor') ?? 1);
       this.loadFloor(); return;
     }
@@ -129,7 +129,7 @@ export class Game {
 
   // ------------------------------------------------------------------ runs
   startRun(party: ClassId[]) {
-    this.run = newRun(this.meta, party);
+    saveFloor(undefined); this.run = newRun(this.meta, party);
     this.meta.runs++; saveMeta(this.meta);
     this.lastRunSummary = undefined;
     if (!this.meta.settings.shownHelp) { this.meta.settings.shownHelp = true; saveMeta(this.meta); this.screens.help(() => this.loadFloor()); return; }
@@ -145,29 +145,39 @@ export class Game {
     const isKeeper = run.floor > FLOORS_PER_HOUR || run.hour === 4;
     const seed = (run.seed * 31 + run.hour * 101 + run.floor * 7) % 2147483647;
     resetIds(1);
+    const snap = loadFloorSave();
+    const resumed = !!snap && snap.hour === run.hour && snap.floor === run.floor && snap.seed === seed;
     const allowed: Record<number, number[]> = { 1: [1, 2, 3, 4], 2: [5, 6, 7, 8], 3: [9, 10, 11], 4: [12] };
     const unfound = Object.keys(CHOIR_PAGES).map(Number).filter(i => !this.meta.pagesFound.includes(i));
     const inHour = unfound.filter(i => allowed[run.hour].includes(i) || i < Math.min(...allowed[run.hour]));
     const pagesLeft = (inHour.length ? inHour : unfound).slice(0, 1); // the next page in the Choir's order
     const eventIds = EVENTS.filter(e => e.hour.includes(run.hour) && !run.eventsSeen.includes(e.id)).map(e => e.id);
     const alive = run.party.filter(p => p.alive);
-    this.level = generateFloor({
-      seed, hour: run.hour, index: isKeeper ? 4 : run.floor, keeper: isKeeper, fever: this.meta.fever, eventIds, pagesLeft,
-      partyDefs: alive.map(p => ({ def: PARTY_DEFS[p.classId], name: p.name, hp: p.hp, maxHp: p.maxHp, boons: p.boons, mods: { ...p.mods, ...(this.meta.upgrades['wick'] && !run.wickUsed ? { wick: 1 } : {}) } })),
-    });
-    this.cs = newCombatState(seed + 1, 6 + (this.meta.upgrades['lantern'] ?? 0));
+    if (resumed) {
+      this.level = snap!.level as Level; resetIds(snap!.nextId);
+      this.cs = newCombatState(seed + 1, snap!.cs.lanternRadius);
+      this.cs.phase = snap!.cs.phase as Phase; this.cs.turn = snap!.cs.turn; this.cs.aware = new Set(snap!.cs.aware);
+      run.shrineHour = snap!.shrineHour;
+    } else {
+      this.level = generateFloor({
+        seed, hour: run.hour, index: isKeeper ? 4 : run.floor, keeper: isKeeper, fever: this.meta.fever, eventIds, pagesLeft,
+        partyDefs: alive.map(p => ({ def: PARTY_DEFS[p.classId], name: p.name, hp: p.hp, maxHp: p.maxHp, boons: p.boons, mods: { ...p.mods, ...(this.meta.upgrades['wick'] && !run.wickUsed ? { wick: 1 } : {}) } })),
+      });
+      this.cs = newCombatState(seed + 1, 6 + (this.meta.upgrades['lantern'] ?? 0));
+    }
     this.presenter.follow = this.meta.settings.cameraFollow;
     refreshVisibility(this.level, this.cs);
     this.presenter.setLevel(this.level); this.backdropHour = 0; this.view.setZoom(1); this.presenter.showBars = true;
     this.presenter.focusParty(true);
     const party = living(this.level, 'party');
-    this.leaderId = party[0]?.id; this.selectedId = this.leaderId; this.armed = undefined; this.seenKeeper = false;
+    this.leaderId = (resumed && snap!.leaderId && party.some(u => u.id === snap!.leaderId)) ? snap!.leaderId : party[0]?.id; this.selectedId = this.leaderId; this.armed = undefined; this.seenKeeper = false;
     this.hud.show(true); this.hud.tooltip.hide();
     const hourNum = ['I', 'II', 'III', 'IV'][run.hour - 1];
     this.hud.setFloor(`Hour ${hourNum} · ${HOUR_NAMES[run.hour]}`, isKeeper ? 'The Keeper' : `Floor ${run.floor}`);
     this.refreshHud(); this.refreshOverlays();
-    saveRun(run);
+    saveRun(run); this.snapshot();
     this.audio.playMusic(this.musicFor());
+    if (resumed) { if (this.cs.phase === 'player' || this.cs.phase === 'enemy') { this.cs.phase = 'player'; this.audio.playMusic(isKeeper ? 'combat2' : 'combat'); } this.refreshHud(); this.refreshOverlays(); this.frameCombat(); return; }
     if (run.floor === 1 && !isKeeper || run.hour === 4) {
       this.meta.flags['reached_hour' + run.hour] = true; this.meta.bestHour = Math.max(this.meta.bestHour, run.hour); saveMeta(this.meta);
       await this.screens.intro(`Hour ${hourNum} · ${HOUR_NAMES[run.hour]}`, HOUR_INTRO[run.hour]);
@@ -178,6 +188,14 @@ export class Game {
     if (run.hour === 4) { // the Warm Hour: everything is lit and aware
       const ev: SimEvent[] = []; startCombat(this.level, this.cs, living(this.level, 'enemy'), ev, 'The dreaming notices you.'); await this.presenter.play(ev); this.afterEvents();
     }
+  }
+
+  /** Write the mid-floor snapshot. Cheap enough to call after every player action. */
+  snapshot() {
+    const run = this.run, L = this.level, cs = this.cs; if (!run || !L || !cs || this.presenter.busy) return;
+    if (cs.phase === 'lost') return;
+    const seed = (run.seed * 31 + run.hour * 101 + run.floor * 7) % 2147483647;
+    saveFloor({ hour: run.hour, floor: run.floor, seed, level: L, cs: { phase: cs.phase === 'enemy' ? 'player' : cs.phase, turn: cs.turn, aware: [...cs.aware], lanternRadius: cs.lanternRadius }, leaderId: this.leaderId, nextId: currentId(), shrineHour: run.shrineHour });
   }
 
   /** Copy level party state back into the run (between floors). */
@@ -483,7 +501,7 @@ export class Game {
         const t = tileAt(L, dest)!;
         if (t.prop && (cheb(leader.pos, dest) <= 1)) await this.useProp(dest);
       }
-    } finally { this.walking = false; this.presenter.overlay.setPath([]); this.refreshOverlays(); }
+    } finally { this.walking = false; this.presenter.overlay.setPath([]); this.refreshOverlays(); this.snapshot(); }
   }
 
   autoExplore(): string {
@@ -528,7 +546,7 @@ export class Game {
         if (await this.screens.confirm('Bank the Lamp', 'Rest here. Everyone heals fully. Once per Hour.', 'Rest', 'Not yet')) { run.shrineHour = run.hour; p.used = true; for (const u of living(L, 'party')) { u.hp = u.maxHp; } this.audio.sfx('magic', 1, 0.5); this.hud.banner('The Lamp is banked', 'Everyone heals.', 2000); this.refreshHud(); }
         return;
       }
-      case 'event': { if (p.used) return; const card = EVENTS.find(e => e.id === p.eventId) ?? EVENTS.find(e => e.hour.includes(run.hour) && !run.eventsSeen.includes(e.id)) ?? EVENTS[0]; p.used = true; this.presenter.world?.rebuildProps(); await this.runEvent(card); return; }
+      case 'event': { if (p.used) return; const card = EVENTS.find(e => e.id === p.eventId) ?? EVENTS.find(e => e.hour.includes(run.hour) && !run.eventsSeen.includes(e.id)) ?? EVENTS[0]; p.used = true; this.presenter.world?.rebuildProps(); await this.runEvent(card); this.snapshot(); return; }
       case 'stairs': { await this.stairsFlow(); return; }
     }
   }
@@ -586,6 +604,7 @@ export class Game {
     if (wasKeeper || run.hour === 4) { if (run.hour === 4) return; run.hour = (run.hour + 1) as Run['hour']; run.floor = 1; }
     else run.floor++;
     for (const p of run.party) if (p.alive) p.hp = Math.min(p.maxHp, p.hp + 2);
+    saveFloor(undefined);
     const first = this.leader(); if (first) this.bark(first, 'descend');
     this.audio.sfx('door_heavy', 1, 0.5);
     saveRun(run);
@@ -622,6 +641,7 @@ export class Game {
     this.refreshHud(); this.refreshOverlays();
     this.onHover(this.lastPointer.x, this.lastPointer.y);
     if (cs.phase === 'lost') { this.lanternOut(); return; }
+    this.snapshot();
     if (cs.phase === 'explore' && (cs as any)._wonPending) { (cs as any)._wonPending = false; }
   }
 
@@ -707,7 +727,7 @@ export class Game {
     const id = ['bank', 'quench', 'keep'][c]; const e = ENDINGS[id];
     this.meta.endings.push(id); this.meta.fever++; this.meta.emberBanked += run.ember + 10; this.meta.emberTotal += run.ember + 10;
     if (id === 'keep') { const who = living(L, 'party').find(u => u.def.id === 'mage') ?? living(L, 'party')[0]; this.meta.book.push({ text: `${who.name}. ${who.def.title}. Kept.`, run: this.meta.runs, name: who.name }); const r = this.meta.roster.find(x => x.name === who.name); if (r) { r.alive = false; this.meta.roster.push(recruit(this.meta, r.classId)); } }
-    saveMeta(this.meta); saveRun(undefined); this.run = undefined;
+    saveMeta(this.meta); saveRun(undefined); saveFloor(undefined); this.run = undefined;
     this.audio.playMusic('ending');
     await this.screens.ending(e.title, e.text);
     this.busyFlow = false;
@@ -722,7 +742,7 @@ export class Game {
     this.meta.emberBanked += ember; this.meta.emberTotal += ember; this.meta.ascended++;
     if (run.hour >= 2 && !abandon) this.meta.fever = Math.min(6, this.meta.fever + 1);
     for (const p of run.party) { const r = this.meta.roster.find(x => x.name === p.name); if (r && p.alive) { r.runs++; r.kills += p.kills; } }
-    saveMeta(this.meta); saveRun(undefined);
+    saveMeta(this.meta); saveRun(undefined); saveFloor(undefined);
     this.lastRunSummary = { died: false, ascended: true, emberBrought: ember, lost: run.party.filter(p => !p.alive).map(p => p.name) };
     this.run = undefined; this.audio.sfx('win', 1, 0.5);
     if (!abandon) await this.screens.ascended(ember, this.level!.meta.hour);
@@ -736,7 +756,7 @@ export class Game {
     const banked = this.meta.upgrades['cage'] ? Math.floor(run.ember / 2) : 0;
     this.meta.emberBanked += banked; this.meta.emberTotal += banked;
     const entries = this.meta.book.filter(b => b.run === this.meta.runs).map(b => b.text);
-    saveMeta(this.meta); saveRun(undefined);
+    saveMeta(this.meta); saveRun(undefined); saveFloor(undefined);
     this.audio.stopMusic(2);
     await new Promise(r => setTimeout(r, 900));
     await this.screens.death(entries, `${HOUR_NAMES[run.hour]}, Hour ${['I', 'II', 'III', 'IV'][run.hour - 1]}.${banked ? ` The Ember Cage brings ${banked} ember home.` : ''}`);

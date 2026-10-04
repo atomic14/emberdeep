@@ -10,6 +10,7 @@ export function hasStatus(u: Unit, k: StatusKind) { return u.statuses.some(s => 
 export function getStatus(u: Unit, k: StatusKind) { return u.statuses.find(s => s.kind === k); }
 export function addStatus(u: Unit, k: StatusKind, turns: number, ev: Ev, power?: number, sourceId?: string) {
   const ex = getStatus(u, k);
+  if (ex && k === 'rooted') return; // a held unit cannot be held harder: roots never chain
   if (ex) { ex.turns = Math.max(ex.turns, turns); if (power !== undefined) ex.power = Math.max(ex.power ?? 0, power); }
   else { u.statuses.push({ kind: k, turns, power, sourceId }); ev.push({ t: 'status', id: u.id, status: k, on: true }); }
 }
@@ -68,7 +69,7 @@ export function kill(l: Level, u: Unit, ev: Ev, cause: string, sourceId?: string
   u.alive = false; u.hp = 0; u.intent = undefined;
   if (sourceId) { const s = l.units.find(x => x.id === sourceId); if (s) s.kills++; }
   ev.push({ t: 'die', id: u.id, cause });
-  if (u.def.flags?.includes('explodes')) explode(l, u.pos, 1, 3, ev, u.id);
+  if (u.def.flags?.includes('explodes')) explode(l, u.pos, 1, 2, ev, u.id);
 }
 
 /** Fire explosion in a chebyshev radius. */

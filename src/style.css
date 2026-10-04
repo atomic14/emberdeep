@@ -43,11 +43,13 @@ h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: .08e
 .bar.armour > i { background: linear-gradient(90deg, #4a6a7f, #7fa7c0); }
 .portrait .stats { display: flex; gap: 8px; font-size: 12px; margin-top: 4px; color: var(--paper-dim); }
 .portrait .stats b { color: var(--paper); font-weight: 600; }
-.portrait .acted { position: absolute; right: 8px; top: 8px; font-size: 11px; color: var(--paper-dim); letter-spacing: .08em; }
+.portrait .acted { position: absolute; right: 8px; bottom: 6px; font-size: 10px; color: var(--ember); letter-spacing: .1em; }
+.portrait.done { opacity: .6; }
+.portrait.done.selected { opacity: .85; }
 .portrait .statuses { position: absolute; left: 8px; top: -12px; display: flex; gap: 3px; }
 .portrait .statuses span { font-size: 11px; padding: 1px 5px; background: var(--ink2); border: 1px solid var(--line); border-radius: 8px; }
 
-#hotbar { position: absolute; left: 560px; bottom: 16px; display: flex; gap: 8px; align-items: flex-end; }
+#hotbar { position: absolute; left: 560px; bottom: 16px; display: flex; gap: 8px; align-items: flex-end; transition: left .2s; }
 .ability { width: 72px; height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; position: relative; padding: 4px; }
 .ability .icon { font-size: 24px; line-height: 1; }
 .ability .label { font-size: 11px; letter-spacing: .03em; text-align: center; line-height: 1.1; }
@@ -113,8 +115,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: .08e
 .boon h3 { font-size: 15px; }
 .boon .desc { font-size: 14.5px; line-height: 1.35; }
 .boon .for { font-size: 12px; color: var(--cistern); letter-spacing: .05em; }
-.hub { width: min(1100px, 94vw); display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; max-height: 92vh; }
-.hub .col { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.hub { width: min(1100px, 94vw); display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; max-height: 94vh; min-height: 0; }
+.hub .col { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; }
 .hub .box { padding: 16px 18px; overflow: auto; }
 .npc { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .npc:last-child { border-bottom: none; }

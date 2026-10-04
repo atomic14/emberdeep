@@ -71,6 +71,7 @@ export class ActorView {
         if (this.spec.tint && mat.name !== 'Glow') mat.color.multiply(new THREE.Color(this.spec.tint));
         if (this.spec.emissive && mat.name !== 'Glow') { mat.emissive = new THREE.Color(this.spec.emissive); mat.emissiveIntensity = 1.0; }
         if (unit.def.tint && mat.name !== 'Glow') mat.color.multiply(new THREE.Color(unit.def.tint));
+        if (unit.faction === 'enemy' && mat.name !== 'Glow' && !this.spec.emissive) { mat.emissive = new THREE.Color(0x14181f); mat.emissiveIntensity = 1; }
         m.castShadow = true; m.frustumCulled = false;
       }
     });
@@ -164,7 +165,7 @@ export class ActorView {
     let d = this.faceTarget - this.model.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d));
     this.model.rotation.y += d * Math.min(1, dt * 14);
     if (this.hitFlash > 0) { this.hitFlash = Math.max(0, this.hitFlash - dt * 4); for (const m of this.mats) if (m.name !== 'Glow') { m.emissive.setRGB(this.hitFlash * 0.9, this.hitFlash * 0.3, this.hitFlash * 0.2); m.emissiveIntensity = 1; } }
-    else if (this.hitFlash === 0 && this.mats.length && this.mats[0].emissiveIntensity === 1 && !this.spec.emissive) { for (const m of this.mats) if (m.name !== 'Glow') { m.emissive.setRGB(0, 0, 0); } this.hitFlash = -1; }
+    else if (this.hitFlash === 0 && this.mats.length && !this.spec.emissive) { for (const m of this.mats) if (m.name !== 'Glow') { if (this.unit.faction === 'enemy') m.emissive.setHex(0x14181f); else m.emissive.setRGB(0, 0, 0); } this.hitFlash = -1; }
     this.root.visible = visible || this.unit.faction === 'party';
     // bar
     if (this.dead || !this.root.visible) { this.bar.style.display = 'none'; return; }

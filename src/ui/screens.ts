@@ -212,7 +212,7 @@ export class Screens {
 }
 
 /** Pick hub lines to show this visit: one per speaker, preferring unsaid conditional lines. */
-export function selectHubLines(meta: Meta, lastRun: { died: boolean; ascended: boolean; emberBrought: number } | undefined): { speaker: string; text: string; key: string }[] {
+export function selectHubLines(meta: Meta, lastRun: { died: boolean; ascended: boolean; emberBrought: number; lost?: string[] } | undefined): { speaker: string; text: string; key: string }[] {
   const out: { speaker: string; text: string; key: string }[] = [];
   const cond = (when: string): boolean => {
     const [k, v] = when.split(':');
@@ -222,6 +222,7 @@ export function selectHubLines(meta: Meta, lastRun: { died: boolean; ascended: b
       case 'flag': return !!meta.flags[v];
       case 'ascended': return meta.ascended >= +v;
       case 'ember': return (lastRun?.emberBrought ?? 0) >= +v;
+      case 'lost': return !!lastRun?.lost?.length && !lastRun.died;
       case 'default': return true;
     }
     return false;
@@ -229,8 +230,8 @@ export function selectHubLines(meta: Meta, lastRun: { died: boolean; ascended: b
   for (const sp of ['warden', 'teodor', 'pim', 'anneke'] as const) {
     if (sp === 'anneke' && meta.runs < 1) continue;
     const cands = HUB_LINES.filter(l => l.speaker === sp && cond(l.when) && !(l.once && meta.linesSaid.includes(sp + '|' + l.when)));
-    const pick = cands.find(l => l.when !== 'default') ?? cands[0];
-    if (pick) out.push({ speaker: sp, text: pick.text, key: sp + '|' + pick.when });
+    const pick = cands.find(l => l.when === 'lost') ?? cands.find(l => l.when !== 'default') ?? cands[0];
+    if (pick) out.push({ speaker: sp, text: pick.text.replace('{lost}', (lastRun?.lost ?? []).join(' and ')), key: sp + '|' + pick.when + (pick.when === 'lost' ? ':' + meta.runs : '') });
   }
   return out;
 }

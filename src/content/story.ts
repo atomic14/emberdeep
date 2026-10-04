@@ -133,6 +133,7 @@ export interface HubLine { speaker: 'warden' | 'teodor' | 'pim' | 'anneke'; when
 export const HUB_LINES: HubLine[] = [
   { speaker: 'warden', when: 'run:1', text: 'You\'re the Candle. Lantern\'s lit. Three rules: go down slow, don\'t count the stairs, come back. The third one\'s the hard one.', once: true },
   { speaker: 'warden', when: 'deaths:1', text: 'Spent, not lost. I\'ll write them tonight. Pick your Lantern.', once: true },
+  { speaker: 'warden', when: 'lost', text: '{lost}. I\'ll write it tonight, in the big book with the red cover. You came back, which is the rule. Sit a minute before you choose again.' },
   { speaker: 'warden', when: 'deaths:3', text: 'You read the Book. Good. Everyone should. There are two names in my hand near the front. I don\'t need to tell you how I know their handwriting was worse than mine.', once: true },
   { speaker: 'warden', when: 'flag:saw_hask_sign', text: 'My grandmother\'s shop. The water took it the third winter. She said the ember would see us through. It did. It has. ...Go on, then.', once: true },
   { speaker: 'warden', when: 'flag:reached_hour3', text: 'Sit. ... Yes. I knew. Thirty years. Tell me what you\'d have done with it, and then tell me what you\'d have done with the winter.', once: true },

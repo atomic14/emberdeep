@@ -11,7 +11,7 @@ import { Rng } from '../src/sim/rng';
 
 interface Stats { floors: number; fights: number; wins: number; deaths: number; turns: number; events: number; partyDeaths: string[]; hoursReached: number; crashed?: string }
 
-function playFloor(L: Level, rng: Rng, st: Stats, maxTurns = 400): 'stairs' | 'dead' | 'stuck' {
+function playFloor(L: Level, rng: Rng, st: Stats, maxTurns = 3000): 'stairs' | 'dead' | 'stuck' {
   const cs = newCombatState(L.meta.seed, 6);
   refreshVisibility(L, cs);
   let guard = 0;
@@ -54,7 +54,8 @@ function playFloor(L: Level, rng: Rng, st: Stats, maxTurns = 400): 'stairs' | 'd
               const t = tileAt(L, r.pos)!; if (t.kind === 'chasm' || t.fire) continue;
               const d = Math.min(...enemies.map(e => cheb(e.pos, r.pos)));
               const inRange = u.def.attackRange === 1 ? d === 1 : d <= u.def.attackRange;
-              const score = (inRange ? 10 : -d) - (threats.has(key(r.pos)) ? 6 : 0) - (t.kind === 'water' ? 1 : 0);
+              const thr = threats.get(key(r.pos)); const dmgHere = thr ? thr.reduce((a, x) => a + x.dmg, 0) : 0;
+              const score = (inRange ? 10 : -d) - Math.min(dmgHere * 2, 6) - (t.kind === 'water' ? 1 : 0);
               if (!best || score > best.score) best = { pos: r.pos, score };
             }
             if (best && best.score > -99) moveUnit(L, cs, u, best.pos, ev);
@@ -110,11 +111,13 @@ function playRun(seed: number): Stats {
 
 describe('autoplay', () => {
   it('plays 12 full runs without crashing', () => {
-    const results = [];
+    const results: Stats[] = [];
     for (let seed = 1; seed <= 12; seed++) { const st = playRun(seed); results.push(st); if (st.crashed) console.log('CRASH seed', seed, st.crashed); }
     const crashed = results.filter(r => r.crashed && !r.crashed.startsWith('stuck'));
     const summary = results.map((r, i) => `seed ${i + 1}: hour ${r.hoursReached}, floors ${r.floors}, fights ${r.fights}/${r.wins} won, turns ${r.turns}, deaths ${r.partyDeaths.join(' ')}${r.crashed ? ' ' + r.crashed.split('\n')[0] : ''}`).join('\n');
     console.log(summary);
+    const byHour = [1, 2, 3, 4].map(h => results.filter(r => r.hoursReached >= h).length);
+    console.log('reached hour >=1..4:', byHour.join(' '), '| avg turns/fight', (results.reduce((a, r) => a + r.turns, 0) / Math.max(1, results.reduce((a, r) => a + r.wins, 0))).toFixed(1));
     expect(crashed, crashed.map(c => c.crashed).join('\n')).toHaveLength(0);
   }, 120000);
 });

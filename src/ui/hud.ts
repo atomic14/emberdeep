@@ -66,19 +66,20 @@ export class Hud {
     this.party.innerHTML = '';
     for (const u of units) {
       const d = document.createElement('div');
-      d.className = 'portrait panel' + (u.id === selectedId ? ' selected' : '') + (u.alive ? '' : ' dead');
+      d.className = 'portrait panel' + (u.id === selectedId ? ' selected' : '') + (u.alive ? '' : ' dead') + (phase === 'player' && u.acted ? ' done' : '');
       const arm = u.armourBroken ? 0 : u.armour + (u.mods['armour'] ?? 0);
       const first = u.name.split(' ')[0];
       const st = u.statuses.map(s => `<span title="${s.kind}">${({ burning: '🔥', rooted: '📌', marked: '🎯', guarded: '✋', bulwark: '⛨', hidden: '💨' } as Record<string, string>)[s.kind] ?? s.kind}</span>`).join('');
       d.innerHTML = `<div class="statuses">${st}</div><div class="name"><span>${first}</span><span class="muted">${u.hp}/${u.maxHp}</span></div><div class="title">${u.def.title ?? ''}</div>
         <div class="bar"><i style="width:${100 * u.hp / u.maxHp}%"></i></div>
         <div class="stats"><span>⛨ <b>${arm}</b></span><span>⚔ <b>${u.def.attack + (u.mods['attack'] ?? 0)}</b></span><span>👣 <b>${phase === 'player' ? u.moveLeft : u.move + (u.mods['move'] ?? 0)}</b></span></div>
-        ${phase === 'player' && u.alive ? `<div class="acted">${u.acted ? 'ACTED' : canUndo(u) ? '<u>undo</u>' : ''}</div>` : ''}`;
+        ${phase === 'player' && u.alive ? `<div class="acted">${u.acted ? 'DONE' : canUndo(u) ? '<u>undo move</u>' : ''}</div>` : ''}`;
       d.onclick = (ev) => { const t = ev.target as HTMLElement; if (t.tagName === 'U') { this.onUndo?.(u.id); return; } this.onSelect?.(u.id); };
       d.onmouseenter = (ev) => this.tooltip.show(`<h4>${u.name}</h4><div class="muted">${u.def.title}</div><div class="row"><span>HP</span><b>${u.hp}/${u.maxHp}</b></div><div class="row"><span>Armour</span><b>${arm}</b></div><div class="row"><span>Attack</span><b>${u.def.attack + (u.mods['attack'] ?? 0)}${u.def.attackRange > 1 ? ` (range ${u.def.attackRange})` : ''}</b></div><div class="row"><span>Move</span><b>${u.move + (u.mods['move'] ?? 0)}</b></div>${u.boons.length ? `<div class="hint">Boons: ${u.boons.join(', ')}</div>` : ''}`, ev.clientX, ev.clientY);
       d.onmouseleave = () => this.tooltip.hide();
       this.party.appendChild(d);
     }
+    this.hotbar.style.left = (16 + this.party.offsetWidth + 26) + 'px';
   }
 
   renderHotbar(u: Unit | undefined, armed: string | undefined, phase: Phase) {

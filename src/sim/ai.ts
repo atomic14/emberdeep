@@ -108,7 +108,7 @@ export function enemyAct(l: Level, u: Unit, rng: Rng, ev: Ev, turn: number): voi
       }
       const tgt = adjacentTarget(l, u);
       if (tgt) { u.facing = dirTo(u.pos, tgt.pos); setIntent(strike(u.facing, u.def.attack, ai === 'grab' ? 'grab' : 'strike')); }
-      else setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Hunting (moves ×2)' });
+      else setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Closing in (×2 move)' });
       return;
     }
     case 'ranged':
@@ -131,7 +131,7 @@ export function enemyAct(l: Level, u: Unit, rng: Rng, ev: Ev, turn: number): voi
       // couldn't find a shot: approach
       const near = nearestParty(l, u);
       if (near && budget > 0) { const path = findPath(l, u.pos, near.target.pos, { unit: u, adjacent: true, openDoors: opens }); if (path) moveAlong(l, u, path.slice(0, Math.max(0, path.length - 2)), budget, ev); }
-      setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Hunting (moves ×2)' });
+      setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Closing in (×2 move)' });
       return;
     }
     case 'healer': {

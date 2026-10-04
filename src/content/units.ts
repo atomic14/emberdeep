@@ -20,7 +20,7 @@ export const RECRUIT_NAMES: Record<string, string[]> = {
 export const ENEMY_DEFS: Record<string, UnitDef> = {
   // Hour I — The Cistern
   rat: { id: 'rat', name: 'Cistern Rat', faction: 'enemy', model: 'rat', hp: 2, armour: 0, move: 5, attack: 1, attackRange: 1, abilities: [], ai: 'melee', threat: 1, flags: ['swarm'] },
-  pale: { id: 'pale', name: 'the Pale', faction: 'enemy', model: 'pale', hp: 5, armour: 0, move: 2, attack: 2, attackRange: 1, abilities: [], ai: 'grab', threat: 2 },
+  pale: { id: 'pale', name: 'the Pale', faction: 'enemy', model: 'pale', hp: 5, armour: 0, move: 3, attack: 2, attackRange: 1, abilities: [], ai: 'grab', threat: 2 },
   drowned: { id: 'drowned', name: 'Drowned', faction: 'enemy', model: 'drowned', hp: 4, armour: 0, move: 3, attack: 2, attackRange: 1, abilities: [], ai: 'melee', threat: 2, flags: ['aquatic'] },
   spider: { id: 'spider', name: 'Cistern Spider', faction: 'enemy', model: 'spider', hp: 3, armour: 0, move: 4, attack: 1, attackRange: 4, abilities: [], ai: 'ranged', threat: 2 },
   // Hour II — The Ossuary
@@ -29,7 +29,7 @@ export const ENEMY_DEFS: Record<string, UnitDef> = {
   crawler: { id: 'crawler', name: 'Tallow Crawler', faction: 'enemy', model: 'crawler', hp: 4, armour: 0, move: 4, attack: 2, attackRange: 1, abilities: [], ai: 'melee', threat: 2, flags: ['oilTrail'] },
   chorister: { id: 'chorister', name: 'Bone Chorister', faction: 'enemy', model: 'skeleton_mage', hp: 4, armour: 0, move: 3, attack: 1, attackRange: 3, abilities: [], ai: 'healer', threat: 3, flags: ['opensDoors'] },
   // Hour III — The Stokeworks
-  stoker: { id: 'stoker', name: 'Stoker', faction: 'enemy', model: 'stoker', hp: 6, armour: 1, move: 3, attack: 3, attackRange: 1, abilities: [], ai: 'melee', threat: 4, flags: ['opensDoors'] },
+  stoker: { id: 'stoker', name: 'Stoker', faction: 'enemy', model: 'stoker', hp: 6, armour: 1, move: 3, attack: 2, attackRange: 1, abilities: [], ai: 'melee', threat: 4, flags: ['opensDoors'] },
   bellows: { id: 'bellows', name: 'Bellows-Priest', faction: 'enemy', model: 'bellows', hp: 4, armour: 0, move: 3, attack: 1, attackRange: 3, abilities: [], ai: 'pusher', threat: 4, flags: ['opensDoors'] },
   hound: { id: 'hound', name: 'Ash Hound', faction: 'enemy', model: 'hound', hp: 3, armour: 0, move: 6, attack: 2, attackRange: 1, abilities: [], ai: 'melee', threat: 3 },
   wight: { id: 'wight', name: 'Ember Wight', faction: 'enemy', model: 'wight', hp: 5, armour: 0, move: 3, attack: 2, attackRange: 1, abilities: [], ai: 'melee', threat: 4, flags: ['explodes'] },
@@ -38,9 +38,9 @@ export const ENEMY_DEFS: Record<string, UnitDef> = {
   dream_spent: { id: 'dream_spent', name: 'Fever (Spent)', faction: 'enemy', model: 'skeleton_warrior', hp: 6, armour: 1, move: 4, attack: 3, attackRange: 1, abilities: [], ai: 'melee', threat: 4, tint: 0xffaa66 },
   dream_archer: { id: 'dream_archer', name: 'Fever (Archer)', faction: 'enemy', model: 'skeleton_rogue', hp: 4, armour: 0, move: 3, attack: 3, attackRange: 5, abilities: [], ai: 'ranged', threat: 4, tint: 0xffaa66 },
   // Keepers
-  ferryman: { id: 'ferryman', name: 'The Ferryman', faction: 'enemy', model: 'ferryman', hp: 18, armour: 1, move: 2, attack: 3, attackRange: 1, abilities: [], ai: 'ferryman', threat: 0, flags: ['keeper', 'noPush'] },
-  tallow: { id: 'tallow', name: 'Mother Tallow', faction: 'enemy', model: 'tallow', hp: 22, armour: 0, move: 1, attack: 2, attackRange: 1, abilities: [], ai: 'tallow', threat: 0, flags: ['keeper', 'noPush', 'oilTrail'] },
-  prelate: { id: 'prelate', name: 'The Prelate Below', faction: 'enemy', model: 'prelate', hp: 24, armour: 2, move: 3, attack: 3, attackRange: 4, abilities: [], ai: 'prelate', threat: 0, flags: ['keeper', 'noPush', 'opensDoors'] },
+  ferryman: { id: 'ferryman', name: 'The Ferryman', faction: 'enemy', model: 'ferryman', hp: 24, armour: 1, move: 2, attack: 3, attackRange: 1, abilities: [], ai: 'ferryman', threat: 0, flags: ['keeper', 'noPush'] },
+  tallow: { id: 'tallow', name: 'Mother Tallow', faction: 'enemy', model: 'tallow', hp: 26, armour: 0, move: 1, attack: 2, attackRange: 1, abilities: [], ai: 'tallow', threat: 0, flags: ['keeper', 'noPush', 'oilTrail'] },
+  prelate: { id: 'prelate', name: 'The Prelate Below', faction: 'enemy', model: 'prelate', hp: 28, armour: 2, move: 3, attack: 3, attackRange: 4, abilities: [], ai: 'prelate', threat: 0, flags: ['keeper', 'noPush', 'opensDoors'] },
   hearth: { id: 'hearth', name: 'The Hearth', faction: 'enemy', model: 'hearth', hp: 30, armour: 0, move: 0, attack: 0, attackRange: 0, abilities: [], ai: 'hearth', threat: 0, flags: ['keeper', 'noPush', 'stationary'] },
 };
 

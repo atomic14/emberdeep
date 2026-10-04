@@ -50,8 +50,8 @@ export function enemiesThatSee(l: Level, cs: CombatState): Unit[] {
     const t = tileAt(l, e.pos)!;
     for (const p of living(l, 'party')) {
       const d = cheb(e.pos, p.pos);
-      const sight = t.visible || (t.lit && d <= cs.lanternRadius * 2) || d <= cs.lanternRadius;
-      if (sight && hasLos(l, e.pos, p.pos) && d <= cs.lanternRadius * 2) { out.push(e); break; }
+      const sight = t.visible || (t.lit && d <= cs.lanternRadius * 2);
+      if (sight && hasLos(l, e.pos, p.pos)) { out.push(e); break; }
     }
   }
   return out;
@@ -250,9 +250,9 @@ export function useAbility(l: Level, cs: CombatState, u: Unit, abilityId: string
     case 'hook': { if (!tu) return false; commit(); ev.push({ t: 'projectile', from: u.pos, to: target, kind: 'hook' }); damage(l, tu, 1 + dmgMod, ev, { sourceId: u.id, cause: u.name }); if (tu.alive) push(l, tu, dirTo(tu.pos, u.pos), Math.min(2 + pushMod, cheb(tu.pos, u.pos) - 1), ev, u.id, 'pull'); break; }
     case 'smoke': { commit(); for (const p of abilityFootprint(l, u, abilityId, target)) { const t = tileAt(l, p)!; if (t.smoke === 0) ev.push({ t: 'smoke', pos: p, on: true }); t.smoke = 2; } break; }
     case 'shadowstep': { if (tu) return false; commit(); const from = u.pos; u.pos = { ...target }; ev.push({ t: 'move', id: u.id, path: [target], kind: 'dash' }); u.facing = dirTo(from, target); landOn(l, u, ev); break; }
-    case 'pin': { if (!tu) return false; commit(); ev.push({ t: 'projectile', from: u.pos, to: target, kind: 'arrow' }); damage(l, tu, 2 + dmgMod, ev, { sourceId: u.id, cause: u.name }); if (tu.alive) addStatus(tu, 'rooted', 1, ev); break; }
+    case 'pin': { if (!tu) return false; commit(); ev.push({ t: 'projectile', from: u.pos, to: target, kind: 'arrow' }); damage(l, tu, 2 + dmgMod, ev, { sourceId: u.id, cause: u.name }); if (tu.alive) addStatus(tu, 'rooted', 2, ev); break; }
     case 'volley': { commit(); for (const p of abilityFootprint(l, u, abilityId, target)) { ev.push({ t: 'projectile', from: u.pos, to: p, kind: 'arrow' }); const un = unitAt(l, p); if (un) damage(l, un, 2 + dmgMod, ev, { sourceId: u.id, cause: u.name }); } break; }
-    case 'mark': { if (!tu) return false; commit(); addStatus(tu, 'marked', 2, ev); break; }
+    case 'mark': { if (!tu) return false; commit(); addStatus(tu, 'marked', 3 + (u.mods['mark_turns'] ?? 0), ev); break; }
     default: return false;
   }
   if (hasStatus(u, 'hidden') && abilityId !== 'smoke') removeStatus(u, 'hidden', ev);
@@ -326,7 +326,7 @@ function resolveIntent(l: Level, cs: CombatState, e: Unit, ev: Ev) {
       const p = tiles[0]; if (!p) break;
       ev.push({ t: 'attack', id: e.id, targetPos: p });
       const u = unitAt(l, p);
-      if (u) { damage(l, u, it.damage, ev, { sourceId: e.id, cause: e.name }); if (u.alive && it.kind === 'grab') addStatus(u, 'rooted', 1, ev); if (u.alive && e.def.id === 'stoker') igniteTile(l, u.pos, ev, 1, 0); }
+      if (u) { damage(l, u, it.damage, ev, { sourceId: e.id, cause: e.name }); if (u.alive && it.kind === 'grab') addStatus(u, 'rooted', 2, ev); if (u.alive && e.def.id === 'stoker') igniteTile(l, u.pos, ev, 1, 0); }
       break;
     }
     case 'shoot': {
@@ -335,7 +335,7 @@ function resolveIntent(l: Level, cs: CombatState, e: Unit, ev: Ev) {
       ev.push({ t: 'projectile', from: e.pos, to: last, kind: e.def.id === 'spider' ? 'web' : e.def.id === 'prelate' ? 'fire' : 'arrow' });
       const u = unitAt(l, last);
       if (e.def.id === 'prelate') { for (const p of tiles) igniteTile(l, p, ev, 1, 0); }
-      if (u) { damage(l, u, it.damage, ev, { sourceId: e.id, cause: e.name, kind: e.def.id === 'prelate' ? 'fire' : 'hit' }); if (u.alive && e.def.id === 'spider') addStatus(u, 'rooted', 1, ev); }
+      if (u) { damage(l, u, it.damage, ev, { sourceId: e.id, cause: e.name, kind: e.def.id === 'prelate' ? 'fire' : 'hit' }); if (u.alive && e.def.id === 'spider') addStatus(u, 'rooted', 2, ev); }
       break;
     }
     case 'pull': {

@@ -26,7 +26,7 @@ const FLOORS_PER_HOUR = 2;
 const ROLE_DESC: Record<string, string> = {
   rat: 'Weak and quick. Comes in packs.', pale: 'Slow. Its grab roots you in place. Cannot open doors. Drawn to light.', drowned: 'Rises from water. Takes +2 from lightning.', spider: 'Shoots a line of web: 1 damage and roots.',
   spent: 'Holds lines, opens doors. Armour 1: pushes and Sunder break it.', spent_archer: 'Shoots down a straight line, 5 tiles. Hits the first thing in it.', crawler: 'Leaves oil behind it. Burns beautifully.', chorister: 'Heals the Spent around it. Kill it first.',
-  stoker: 'Armoured. Its strike sets your tile alight.', bellows: 'Blasts a line of hot air: pushes 2.', hound: 'Fast. Moves twice as far when it has no target.', wight: 'Explodes when it dies: 3 fire to everything adjacent. Kill it away from your friends.',
+  stoker: 'Armoured. Its strike sets your tile alight, and burning hurts every turn.', bellows: 'Blasts a line of hot air: pushes 2.', hound: 'Fast. Moves twice as far when it has no target.', wight: 'Explodes when it dies: 2 fire to everything adjacent. Kill it away from your friends.',
   dream_pale: 'A fever of the Pale. Grabs.', dream_spent: 'A fever of the Spent.', dream_archer: 'A fever with a bow.',
   ferryman: 'Pulls you along his chain toward the edge. Cannot be pushed.', tallow: 'Keeps the Spent warm: heals them, wakes more. Cannot be pushed.', prelate: 'Burns a line. Calls Stokers. Half ember himself.', hearth: 'It does not fight. It dreams. Put the dreams down and reach it.',
 };
@@ -43,8 +43,9 @@ export class Game {
   hoverCell?: Vec2;
   private walking = false;
   private walkCancel = false;
+  private exploring = false;
   private keys = new Set<string>();
-  private lastRunSummary?: { died: boolean; ascended: boolean; emberBrought: number };
+  private lastRunSummary?: { died: boolean; ascended: boolean; emberBrought: number; lost?: string[] };
   private seenKeeper = false;
   private busyFlow = false;
   private hoverTimer = 0;
@@ -56,9 +57,15 @@ export class Game {
     this.bindInput();
     screens.onOpen = () => hud.tooltip.hide();
     presenter.onText = (t, s) => this.hud.log(t, s);
-    presenter.onCombatStart = (r) => { this.hud.banner('They have seen your light', r, 2200); this.audio.playMusic(this.level?.meta.isKeeper ? 'combat2' : 'combat'); };
+    presenter.onCombatStart = (r) => {
+      this.hud.banner('They have seen your light', r, 2200); this.audio.playMusic(this.level?.meta.isKeeper ? 'combat2' : 'combat'); this.frameCombat();
+      const n = (this.meta.flags['_fights'] as unknown as number) || 0; (this.meta.flags as any)['_fights'] = n + 1;
+      const hints = ['Your whole Lantern acts first, in any order. Enemies move and then commit to an attack; they strike at the start of their next turn.', 'Red tiles are where enemies will strike. Step out of them, or push the enemy so its attack lands elsewhere.', 'Hover an enemy to see what it will do and what your attack would do to it. Numbers never lie here.', 'Movement can be undone until you act. Right-click or Z.'];
+      if (n < hints.length) setTimeout(() => this.hud.log(hints[n], 'story'), 2400);
+    };
     presenter.onCombatEnd = (won) => { if (won) { this.hud.banner('The room is quiet', '', 1600); this.audio.playMusic(this.musicFor()); setTimeout(() => this.wonFight(), 500); } };
     presenter.onIntentChange = () => this.refreshOverlays();
+    presenter.isAware = id => !!this.cs?.aware.has(id);
     hud.onSelect = id => this.select(id); hud.onAbility = id => this.arm(id); hud.onEndTurn = () => this.endTurn(); hud.onExplore = () => this.autoExplore(); hud.onUndo = id => this.undo(id);
     hud.onMenu = () => this.openMenu(); hud.onHelp = () => this.screens.help(() => { });
   }
@@ -67,6 +74,7 @@ export class Game {
   start() {
     this.hud.show(false);
     const q = new URLSearchParams(location.search);
+    if (q.has('continue') && loadRun()) { this.continueRun(); return; }
     if (q.has('hour')) { // developer shortcut: ?hour=2&floor=1&party=knight,mage,rogue&keeper=1
       const party = (q.get('party') ?? 'knight,barbarian,mage').split(',') as ClassId[];
       for (const c of party) if (!this.meta.roster.find(r => r.classId === c && r.alive)) this.meta.roster.push({ classId: c, name: PARTY_DEFS[c].name, alive: true, runs: 0, kills: 0, original: true });
@@ -137,7 +145,10 @@ export class Game {
     const isKeeper = run.floor > FLOORS_PER_HOUR || run.hour === 4;
     const seed = (run.seed * 31 + run.hour * 101 + run.floor * 7) % 2147483647;
     resetIds(1);
-    const pagesLeft = Object.keys(CHOIR_PAGES).map(Number).filter(i => !this.meta.pagesFound.includes(i));
+    const allowed: Record<number, number[]> = { 1: [1, 2, 3, 4], 2: [5, 6, 7, 8], 3: [9, 10, 11], 4: [12] };
+    const unfound = Object.keys(CHOIR_PAGES).map(Number).filter(i => !this.meta.pagesFound.includes(i));
+    const inHour = unfound.filter(i => allowed[run.hour].includes(i) || i < Math.min(...allowed[run.hour]));
+    const pagesLeft = (inHour.length ? inHour : unfound).slice(0, 1); // the next page in the Choir's order
     const eventIds = EVENTS.filter(e => e.hour.includes(run.hour) && !run.eventsSeen.includes(e.id)).map(e => e.id);
     const alive = run.party.filter(p => p.alive);
     this.level = generateFloor({
@@ -215,6 +226,25 @@ export class Game {
     const w = this.view.screenToGround(cx, cy); if (!w || !this.level) return undefined;
     const g = View.worldToGrid(w); return inBounds(this.level, g) ? g : undefined;
   }
+  private onScreen(p: Vec2, margin = 0.78): boolean {
+    const s = this.view.worldToScreen(View.gridToWorld(p.x, p.y));
+    const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    return Math.abs(s.x - cx) < cx * margin && Math.abs(s.y - cy) < cy * margin;
+  }
+  /** Frame the party together with the visible enemies in the fight. */
+  private frameCombat() {
+    const L = this.level, cs = this.cs; if (!L || !cs) return;
+    const party = living(L, 'party').map(u => u.pos);
+    const foes = living(L, 'enemy').filter(e => cs.aware.has(e.id) && tileAt(L, e.pos)!.visible).map(e => e.pos);
+    if (!party.length) return;
+    const centroid = (pts: Vec2[]) => pts.reduce((a, p) => ({ x: a.x + p.x / pts.length, y: a.y + p.y / pts.length }), { x: 0, y: 0 });
+    const pc = centroid(party);
+    if (!foes.length) { this.view.lookAtGrid(pc.x, pc.y); return; }
+    const fc = centroid(foes);
+    this.view.lookAtGrid((pc.x + fc.x) / 2, (pc.y + fc.y) / 2);
+    const span = Math.max(...party.concat(foes).map(p => cheb(p, { x: (pc.x + fc.x) / 2, y: (pc.y + fc.y) / 2 })));
+    if (span > 7 && this.view.zoomIndex < 2) this.view.setZoom(2); else if (span <= 5 && this.view.zoomIndex > 1) this.view.setZoom(1);
+  }
   selected(): Unit | undefined { return this.level?.units.find(u => u.id === this.selectedId && u.alive); }
   leader(): Unit | undefined { const L = this.level; if (!L) return; return L.units.find(u => u.id === this.leaderId && u.alive) ?? living(L, 'party')[0]; }
   partyUnits() { return this.level ? this.level.units.filter(u => u.faction === 'party') : []; }
@@ -223,7 +253,7 @@ export class Game {
     const u = this.level?.units.find(x => x.id === id); if (!u || !u.alive) return;
     this.selectedId = id; if (this.cs?.phase === 'explore') this.leaderId = id;
     this.armed = undefined; this.audio.sfx('ui_click', 1, 0.3);
-    if (this.cs?.phase === 'player') this.view.lookAtGrid(u.pos.x, u.pos.y);
+    if (this.cs?.phase === 'player' && !this.onScreen(u.pos)) this.view.lookAtGrid(u.pos.x, u.pos.y);
     this.refreshHud(); this.refreshOverlays();
   }
   cycleSelect() {
@@ -243,6 +273,7 @@ export class Game {
     this.refreshHud(); this.refreshOverlays();
   }
   onCancel() {
+    this.exploring = false;
     if (this.walking) { this.walkCancel = true; return; }
     if (this.armed) { this.armed = undefined; this.refreshHud(); this.refreshOverlays(); return; }
     const u = this.selected(); if (u && canUndo(u)) this.undo(u.id);
@@ -289,7 +320,7 @@ export class Game {
         } else if (hu && hu.faction === 'enemy' && t.visible) {
           html = this.unitTip(hu);
           if (!u.acted && attackTargets(L, u).includes(hu)) html += `<div class="preview">${this.previewAttack(u, hu)}</div><div class="hint">Click to attack.</div>`;
-          else if (!u.acted) html += `<div class="hint">${u.def.attackRange > 1 ? 'No line of sight or out of range.' : 'Not adjacent.'}</div>`;
+          else if (!u.acted) html += `<div class="hint">${u.def.attackRange > 1 ? (cheb(u.pos, hu.pos) > u.def.attackRange ? `Out of range: ${cheb(u.pos, hu.pos)} tiles, range ${u.def.attackRange}.` : 'No line of sight.') : `${cheb(u.pos, hu.pos) - 1} tile${cheb(u.pos, hu.pos) - 1 > 1 ? 's' : ''} short. Click to move and strike if ${u.name.split(' ')[0]} can reach.`}</div>`;
         } else if (t.explored) {
           const reach = u.acted ? undefined : moveRange(L, u).get(key(cell));
           if (reach) {
@@ -345,6 +376,7 @@ export class Game {
     }
     for (const [id, d] of dmg) { const u = before.units.find(x => x.id === id)!; const au = after.units.find(x => x.id === id)!; const first = u.faction === 'party' ? u.name.split(' ')[0] : u.name; const where = moved.get(id); const t = where ? tileAt(after, where) : undefined; lines.push(`${first}: ${d} damage${died.has(id) ? (t?.kind === 'chasm' ? ' — <b>falls</b>' : ' — <b>dies</b>') : ` → ${Math.max(0, au.hp)} HP`}${where && !died.has(id) ? ` (pushed to ${t?.kind === 'water' ? 'water' : t?.kind === 'oil' ? 'oil' : t?.fire ? 'fire' : 'a new tile'})` : ''}`); }
     for (const [id, p] of moved) if (!dmg.has(id)) { const u = before.units.find(x => x.id === id)!; const t = tileAt(after, p); lines.push(`${u.name}: pushed${died.has(id) ? ' — <b>falls</b>' : t?.kind === 'water' ? ' into water' : t?.kind === 'oil' ? ' onto oil' : ''}`); }
+    for (const [id] of moved) { const au = after.units.find(x => x.id === id); if (!au || !au.alive || au.faction !== 'enemy' || !au.intent || au.intent.kind === 'wait') continue; const hits = intentTiles(after, au).map(q => unitAt(after, q)).filter((x): x is Unit => !!x); lines.push(hits.length ? `Its attack now lands on ${hits.map(h => h.name.split(' ')[0]).join(', ')}.` : 'Its attack now hits nothing.'); }
     for (const [id, h] of heal) lines.push(`${before.units.find(x => x.id === id)!.name}: heals ${h}`);
     if (shock) lines.push('Lightning spreads through the water.');
     if (fire) lines.push(`${fire} tile${fire > 1 ? 's' : ''} catch fire.`);
@@ -373,6 +405,7 @@ export class Game {
     const L = this.level, cs = this.cs, t = tileAt(L, cell)!;
     const hu = unitAt(L, cell);
     if (cs.phase === 'explore') {
+      this.exploring = false;
       if (this.walking) { this.walkCancel = true; await this.waitWalk(); }
       if (hu && hu.faction === 'party') { this.select(hu.id); return; }
       if (!t.explored) { const near = this.nearestExplored(cell); if (near) this.walkTo(near); return; }
@@ -410,7 +443,7 @@ export class Game {
     this.armed = undefined; this.refreshHud(); this.refreshOverlays();
     await this.presenter.play(ev); this.afterEvents();
   }
-  private isInteractive(k: string, p: { used?: boolean; broken?: boolean }) { return (k === 'door') || (k === 'chest' && !p.used) || k === 'stairs' || k === 'shrine' || (k === 'event' && !p.used) || (k === 'ember' && !p.used) || (k === 'page' && !p.used); }
+  private isInteractive(k: string, p: { used?: boolean; broken?: boolean }) { return (k === 'door') || (k === 'chest' && !p.used) || k === 'stairs' || (k === 'shrine' && !p.used && this.run?.shrineHour !== this.run?.hour) || (k === 'event' && !p.used) || (k === 'ember' && !p.used) || (k === 'page' && !p.used); }
 
   // ------------------------------------------------------------------ exploration
   private explorePath(leader: Unit, dest: Vec2): Vec2[] | null {
@@ -437,9 +470,9 @@ export class Game {
         const r = exploreStep(L, cs, leader, path, ev);
         await this.presenter.play(ev);
         this.presenter.overlay.setPath(path);
+        if (r.interrupted) { this.afterEvents(); this.frameCombat(); return; }
         if (this.meta.settings.cameraFollow) this.presenter.focusParty();
         this.refreshHud();
-        if (r.interrupted) { this.afterEvents(); return; }
         // auto-pickup things we step on
         const here = tileAt(L, leader.pos)!;
         if (here.prop && (here.prop.kind === 'ember' || here.prop.kind === 'page') && !here.prop.used) { await this.useProp(leader.pos); }
@@ -468,7 +501,14 @@ export class Game {
     for (const r of reach.values()) consider(r);
     consider({ pos: leader.pos, cost: 0 });
     const target = poi && (!frontier || poi.cost <= frontier.cost + 6) ? poi : frontier;
-    if (target) { const tp = tileAt(L, target.pos)!.prop; this.walkTo(target.pos, !!tp && !(tp.kind === 'door' && tp.open)); return `walk ${target.pos.x},${target.pos.y} ${poi ? 'poi' : 'frontier'}`; }
+    const chain = async (dest: Vec2, interactAtEnd: boolean) => {
+      this.exploring = true;
+      await this.walkTo(dest, interactAtEnd);
+      // keep going until something needs the player: combat, a screen, or nothing left
+      if (this.exploring && this.cs?.phase === 'explore' && !this.screens.isOpen && !this.walkCancel) { this.exploring = false; setTimeout(() => { if (this.cs?.phase === 'explore' && !this.screens.isOpen && !this.walking) this.autoExplore(); }, 120); }
+      else this.exploring = false;
+    };
+    if (target) { const tp = tileAt(L, target.pos)!.prop; chain(target.pos, !!tp && !(tp.kind === 'door' && tp.open)); return `walk ${target.pos.x},${target.pos.y} ${poi ? 'poi' : 'frontier'}`; }
     const stairs = L.tiles.findIndex(t => t.prop?.kind === 'stairs' && t.explored);
     if (stairs >= 0) { this.hud.log('Nothing else to find. Walking to the stairs.'); this.walkTo({ x: stairs % L.w, y: Math.floor(stairs / L.w) }, true); return 'stairs'; }
     this.hud.log('Nowhere obvious left to go.'); return 'nothing';
@@ -485,7 +525,7 @@ export class Game {
       case 'page': { p.used = true; t.prop = undefined; this.presenter.world?.rebuildProps(); this.audio.sfx('page', 1, 0.6); if (p.pageId && !this.meta.pagesFound.includes(p.pageId)) { this.meta.pagesFound.push(p.pageId); run.pagesThisRun.push(p.pageId); saveMeta(this.meta); } await this.screens.page(p.pageId ?? 1); this.refreshHud(); return; }
       case 'shrine': {
         if (run.shrineHour === run.hour) { this.hud.log('The shrine is cold. Once per Hour.', 'warn'); return; }
-        if (await this.screens.confirm('Bank the Lamp', 'Rest here. Everyone heals fully. Once per Hour.', 'Rest', 'Not yet')) { run.shrineHour = run.hour; for (const u of living(L, 'party')) { u.hp = u.maxHp; } this.audio.sfx('magic', 1, 0.5); this.hud.banner('The Lamp is banked', 'Everyone heals.', 2000); this.refreshHud(); }
+        if (await this.screens.confirm('Bank the Lamp', 'Rest here. Everyone heals fully. Once per Hour.', 'Rest', 'Not yet')) { run.shrineHour = run.hour; p.used = true; for (const u of living(L, 'party')) { u.hp = u.maxHp; } this.audio.sfx('magic', 1, 0.5); this.hud.banner('The Lamp is banked', 'Everyone heals.', 2000); this.refreshHud(); }
         return;
       }
       case 'event': { if (p.used) return; const card = EVENTS.find(e => e.id === p.eventId) ?? EVENTS.find(e => e.hour.includes(run.hour) && !run.eventsSeen.includes(e.id)) ?? EVENTS[0]; p.used = true; this.presenter.world?.rebuildProps(); await this.runEvent(card); return; }
@@ -513,7 +553,7 @@ export class Game {
         case 'damage': { const who = a === 'leader' ? leader : party.find(u => u.def.id === a) ?? leader; who.hp = Math.max(1, who.hp - (+b)); this.presenter.fx.number(who.pos, b, 'fire'); break; }
         case 'relic': { if (a === 'badge') { leader.mods['armour'] = (leader.mods['armour'] ?? 0) + 1; this.hud.log(`${leader.name.split(' ')[0]} pins on the badge: +1 armour.`, 'story'); } else { run.ember += 2; for (const u of party) u.hp = Math.min(u.maxHp, u.hp + 3); this.hud.log('Something useful: +2 ember, everyone heals 3.', 'story'); } break; }
         case 'flag': run.flags[a] = true; this.meta.flags[a] = true; break;
-        case 'page': { const left = Object.keys(CHOIR_PAGES).map(Number).filter(i => !this.meta.pagesFound.includes(i)); if (left.length) { const id = left[0]; this.meta.pagesFound.push(id); run.pagesThisRun.push(id); this.audio.sfx('page', 1, 0.6); await this.screens.page(id); } else this.hud.log('You have every page there is.'); break; }
+        case 'page': { const left = Object.keys(CHOIR_PAGES).map(Number).filter(i => !this.meta.pagesFound.includes(i)); if (left.length) { const id = Math.min(...left); this.meta.pagesFound.push(id); run.pagesThisRun.push(id); this.audio.sfx('page', 1, 0.6); await this.screens.page(id); } else this.hud.log('You have every page there is.'); break; }
         case 'extra': { const def = ENEMY_DEFS[a]; const n = +b; const rooms = L.rooms.filter(r => r.role === 'combat' && L.units.some(u => u.alive && u.faction === 'enemy' && tileAt(L, u.pos)!.room === r.id)); const room = rooms[0]; if (def && room) { let placed = 0; for (let tries = 0; tries < 60 && placed < n; tries++) { const p = { x: room.x + Math.floor(Math.random() * room.w), y: room.y + Math.floor(Math.random() * room.h) }; if (walkable(L, p) && !unitAt(L, p) && !tileAt(L, p)!.visible) { L.units.push(makeUnit(def, p)); placed++; } } this.hud.log('Wet footprints, closer than before.', 'warn'); } break; }
         case 'ambush': { const enemies = living(L, 'enemy'); if (!enemies.length) break; const spots: Vec2[] = []; for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) { const p = add(leader.pos, { x: dx, y: dy }); if (inBounds(L, p) && walkable(L, p) && !unitAt(L, p) && cheb(p, leader.pos) >= 3 && tileAt(L, p)!.room === tileAt(L, leader.pos)!.room) spots.push(p); } for (const e of enemies) { if (!spots.length) break; const i = Math.floor(Math.random() * spots.length); e.pos = spots.splice(i, 1)[0]; } this.presenter.sync(); const ev: SimEvent[] = []; refreshVisibility(L, cs); startCombat(L, cs, living(L, 'enemy'), ev, 'The whole floor comes for you.'); await this.presenter.play(ev); this.afterEvents(); break; }
         case 'lantern': cs.lanternRadius = Math.max(3, cs.lanternRadius + (+a)); refreshVisibility(L, cs); this.presenter.world?.updateVisibility(); break;
@@ -532,7 +572,7 @@ export class Game {
     const alive = living(L, 'party');
     const short = alive.length < 3 && run.party.filter(p => p.alive).length < 3;
     const opts = [
-      { text: 'Go deeper', stake: short ? 'You are short-handed. Deeper is allowed, but the guild would not advise it.' : `Hour ${['I', 'II', 'III', 'IV'][run.hour - 1]}${run.floor >= FLOORS_PER_HOUR ? ': the Keeper waits below.' : `, floor ${run.floor + 1}.`}` },
+      { text: 'Go deeper', stake: (short ? 'You are short-handed. Deeper is allowed, but the guild would not advise it. ' : L.meta.isKeeper ? `Hour ${['I', 'II', 'III', 'IV'][run.hour]} · ${HOUR_NAMES[run.hour + 1]}. ` : `Hour ${['I', 'II', 'III', 'IV'][run.hour - 1]}${run.floor >= FLOORS_PER_HOUR ? ': the Keeper waits below. ' : `, floor ${run.floor + 1}. `}`) + 'A breath on the stair: everyone heals 2.' },
       { text: 'Ascend', stake: `Climb out with ${run.ember} ember. The descent ends; the Vigil banks it.` },
       { text: 'Stay', stake: 'Not yet.' },
     ];
@@ -545,6 +585,7 @@ export class Game {
     const wasKeeper = run.floor > FLOORS_PER_HOUR;
     if (wasKeeper || run.hour === 4) { if (run.hour === 4) return; run.hour = (run.hour + 1) as Run['hour']; run.floor = 1; }
     else run.floor++;
+    for (const p of run.party) if (p.alive) p.hp = Math.min(p.maxHp, p.hp + 2);
     const first = this.leader(); if (first) this.bark(first, 'descend');
     this.audio.sfx('door_heavy', 1, 0.5);
     saveRun(run);
@@ -554,9 +595,9 @@ export class Game {
   // ------------------------------------------------------------------ combat
   async endTurn() {
     const L = this.level, cs = this.cs; if (!L || !cs || cs.phase !== 'player' || this.presenter.busy || this.busyFlow) return;
-    const unspent = living(L, 'party').filter(u => !u.acted);
+    const unspent = living(L, 'party').filter(u => !u.acted && (attackTargets(L, u).length > 0 || u.def.abilities.some(ab => (u.cooldowns[ab] ?? 0) === 0 && ABILITIES[ab].shape !== 'self' && abilityTargets(L, u, ab).some(p => unitAt(L, p)?.faction === 'enemy'))));
     if (unspent.length && this.meta.settings.confirmEndTurn) {
-      const ok = await this.screens.confirm('Hold?', `${unspent.map(u => u.name.split(' ')[0]).join(', ')} ${unspent.length > 1 ? 'have' : 'has'} not acted.`, 'Hold anyway', 'Wait');
+      const ok = await this.screens.confirm('Hold?', `${unspent.map(u => u.name.split(' ')[0]).join(', ')} could still strike something.`, 'Hold anyway', 'Wait');
       if (!ok) return;
     }
     this.armed = undefined;
@@ -566,7 +607,7 @@ export class Game {
     this.hud.setPhase('enemy', false); this.refreshOverlays();
     await this.presenter.play(ev);
     this.afterEvents();
-    if (cs.phase === 'player') { this.hud.banner('Your turn', '', 600); const first = living(L, 'party').find(u => !u.acted); if (first) { this.selectedId = first.id; } this.refreshHud(); this.refreshOverlays(); await this.checkKeeperBeats(); }
+    if (cs.phase === 'player') { this.hud.banner('Your turn', '', 600); const first = living(L, 'party').find(u => !u.acted); if (first) { this.selectedId = first.id; } if (this.meta.settings.cameraFollow) this.frameCombat(); this.refreshHud(); this.refreshOverlays(); await this.checkKeeperBeats(); }
   }
 
   /** After any sim change: HUD, overlays, and phase transitions (won/lost). */
@@ -682,7 +723,7 @@ export class Game {
     if (run.hour >= 2 && !abandon) this.meta.fever = Math.min(6, this.meta.fever + 1);
     for (const p of run.party) { const r = this.meta.roster.find(x => x.name === p.name); if (r && p.alive) { r.runs++; r.kills += p.kills; } }
     saveMeta(this.meta); saveRun(undefined);
-    this.lastRunSummary = { died: false, ascended: true, emberBrought: ember };
+    this.lastRunSummary = { died: false, ascended: true, emberBrought: ember, lost: run.party.filter(p => !p.alive).map(p => p.name) };
     this.run = undefined; this.audio.sfx('win', 1, 0.5);
     if (!abandon) await this.screens.ascended(ember, this.level!.meta.hour);
     this.showHub();

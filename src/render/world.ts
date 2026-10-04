@@ -28,7 +28,7 @@ class Batch {
 }
 
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
-const DIM = new THREE.Color(0.22, 0.22, 0.26);
+const DIM = new THREE.Color(0.3, 0.3, 0.34);
 const LIT = new THREE.Color(1, 1, 1);
 
 export interface LightSpot { pos: Vec2; color: number; intensity: number; flicker: boolean; y: number }

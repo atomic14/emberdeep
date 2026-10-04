@@ -53,7 +53,7 @@ export class View {
     this.scene.background = new THREE.Color(0x07060a);
 
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
-    this.hemi = new THREE.HemisphereLight(0x5a6a8a, 0x1a0f0a, 0.6); this.scene.add(this.hemi);
+    this.hemi = new THREE.HemisphereLight(0x5a6a8a, 0x1a0f0a, 0.9); this.scene.add(this.hemi);
     this.key = new THREE.DirectionalLight(0xaab8d8, 1.6);
     this.key.castShadow = true; this.key.shadow.mapSize.set(2048, 2048);
     this.key.shadow.camera.near = 1; this.key.shadow.camera.far = 300; this.key.shadow.normalBias = 0.04; this.key.shadow.bias = -0.0005;

@@ -28,6 +28,7 @@ export class Presenter {
   onCombatStart?: (reason: string) => void;
   onCombatEnd?: (won: boolean) => void;
   onIntentChange?: () => void;
+  isAware: (id: string) => boolean = () => true;
   private tilesDirty = false;
   private propsDirty = false;
   private barLayer: HTMLElement;
@@ -102,7 +103,7 @@ export class Presenter {
       a.face({ x: Math.sign(p.x - prev.x), y: Math.sign(p.y - prev.y) });
       const t = tileAt(this.level!, p);
       if (t?.visible || u.faction === 'party') this.audio.sfx(t?.kind === 'water' ? 'stepwater' : 'step', t?.kind === 'water' ? 2 : 5, 0.35);
-      await a.moveTo(p, 0.17 / this.speed);
+      await a.moveTo(p, (u.faction === 'party' && this.level && this.level.units.every(x => x.faction === 'party' || !x.alive || !this.isAware(x.id)) ? 0.13 : 0.17) / this.speed);
       prev = p;
     }
     a.play('Idle', 0.2);

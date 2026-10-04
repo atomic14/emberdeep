@@ -102,6 +102,7 @@ export function enemyAct(l: Level, u: Unit, rng: Rng, ev: Ev, turn: number): voi
     case 'grab': {
       const near = nearestParty(l, u);
       if (!near) { setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Waiting' }); return; }
+      if (near.dist >= 999) { setIntent({ kind: 'wait', dir: { x: 0, y: 0 }, range: 0, damage: 0, label: 'Cannot reach you' }); return; }
       if (cheb(u.pos, near.target.pos) > 1 && budget > 0) {
         const path = findPath(l, u.pos, near.target.pos, { unit: u, adjacent: true, openDoors: opens });
         if (path) moveAlong(l, u, path, budget, ev);

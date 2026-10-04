@@ -20,6 +20,8 @@ export interface CombatState {
   lanternRadius: number;
   rng: Rng;
   log: string[];
+  idleTurns?: number;
+  disengaged?: boolean;
 }
 
 let nextUnitId = 1;
@@ -77,7 +79,7 @@ function checkCombatEnd(l: Level, cs: CombatState, ev: Ev): boolean {
   if (awareEnemies(l, cs).length === 0) {
     cs.phase = 'explore'; cs.aware.clear();
     for (const p of living(l, 'party')) { p.movedFrom = undefined; p.acted = false; p.moveLeft = p.move; for (const k of Object.keys(p.cooldowns)) p.cooldowns[k] = 0; for (const s of [...p.statuses]) if (s.kind !== 'burning') removeStatus(p, s.kind, ev); }
-    ev.push({ t: 'combatEnd', won: true });
+    ev.push({ t: 'combatEnd', won: !cs.disengaged }); cs.disengaged = false;
     return true;
   }
   return false;
@@ -312,6 +314,15 @@ export function endPlayerTurn(l: Level, cs: CombatState, ev: Ev): void {
   }
   refreshVisibility(l, cs);
   joinNewEnemies(l, cs, ev);
+  // 3b. Standoff: if nothing can reach or target anyone for two turns running, they lose your light.
+  const aware = awareEnemies(l, cs);
+  const allIdle = aware.length > 0 && aware.every(e => !e.intent || e.intent.kind === 'wait');
+  cs.idleTurns = allIdle ? (cs.idleTurns ?? 0) + 1 : 0;
+  if (cs.idleTurns >= 2) {
+    for (const e of aware) { e.intent = undefined; ev.push({ t: 'intent', id: e.id, intent: undefined }); }
+    cs.aware.clear(); cs.idleTurns = 0; cs.disengaged = true;
+    ev.push({ t: 'text', text: 'They have lost your light. The room settles.', style: 'story' });
+  }
   // 4. Player turn
   cs.turn++; cs.phase = 'player';
   statusTick(l, 'party', ev);

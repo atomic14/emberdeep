@@ -8,7 +8,7 @@ import { generateFloor } from '../sim/dungeon';
 import { HOUR_NAMES, KEEPER_FOR_HOUR } from '../sim/dungeon';
 import {
   newCombatState, type CombatState, startCombat, moveUnit, undoMove, canUndo, basicAttack, attackTargets, attackDamage, useAbility, abilityTargets, abilityFootprint,
-  endPlayerTurn, exploreStep, followStep, marchOrder, MARCH_RANK, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee, attackableProps, attackProp,
+  endPlayerTurn, exploreStep, followStep, marchOrder, MARCH_RANK, hazardPenalty, threatTiles, moveRange, interact, refreshVisibility, resetIds, currentId, makeUnit, intentTiles, enemiesThatSee, attackableProps, attackProp,
 } from '../sim/combat';
 import { Rng } from '../sim/rng';
 import { PARTY_DEFS, ENEMY_DEFS } from '../content/units';
@@ -495,7 +495,8 @@ export class Game {
     const L = this.level!; const t = tileAt(L, dest)!;
     const blockingProp = !!t.prop && (t.prop.kind === 'chest' || (t.prop.kind === 'door' && !t.prop.open) || t.prop.kind === 'lamp' || t.prop.kind === 'niche' || ((t.prop.kind === 'barrel' || t.prop.kind === 'brazier') && !t.prop.broken) || (t.prop.kind === 'pillar' && !t.prop.broken));
     const enemy = unitAt(L, dest)?.faction === 'enemy';
-    return findPath(L, leader.pos, dest, { unit: leader, adjacent: blockingProp || enemy, avoidUnits: false, penalty: p => (tileAt(L, p)!.explored ? 0 : 50) + (tileAt(L, p)!.fire ? 20 : 0) + (tileAt(L, p)!.kind === 'water' ? 1 : 0) });
+    const hz = hazardPenalty(L);
+    return findPath(L, leader.pos, dest, { unit: leader, adjacent: blockingProp || enemy, avoidUnits: false, penalty: p => (tileAt(L, p)!.explored ? 0 : 50) + hz(p) });
   }
   private nearestExplored(cell: Vec2): Vec2 | undefined {
     const L = this.level!; let best: Vec2 | undefined; let bd = 1e9;
@@ -507,6 +508,9 @@ export class Game {
   async walkTo(dest: Vec2, interactAtEnd = false) {
     const L = this.level!, cs = this.cs!; const leader = this.leader(); if (!leader || this.walking) return;
     const path = this.explorePath(leader, dest); if (!path) { this.hud.log('No way through.', 'warn'); return; }
+    const burning = path.find(p => tileAt(L, p)!.fire > 0 || tileAt(L, p)!.kind === 'vent');
+    if (burning && !eq(burning, dest)) { this.hud.log('The way is burning. Wait for it to die down, or pick another route.', 'warn'); return; }
+    if (burning) { const ok = await this.screens.confirm('Walk into the fire?', 'That tile is burning. Stepping in costs 2 and sets the walker alight.', 'Walk in', 'Stay'); if (!ok) return; }
     this.walking = true; this.walkCancel = false;
     this.presenter.overlay.setPath(path);
     try {
@@ -541,10 +545,11 @@ export class Game {
   autoExplore(): string {
     if (!this.level || !this.cs || this.cs.phase !== 'explore' || this.walking) return 'busy';
     const L = this.level; const leader = this.leader(); if (!leader) return 'no leader';
-    const reach = reachable(L, leader.pos, 400, { unit: leader, avoidUnits: false, openDoors: true, penalty: p => tileAt(L, p)!.explored ? 0 : 1000 });
+    const hz = hazardPenalty(L);
+    const reach = reachable(L, leader.pos, 400, { unit: leader, avoidUnits: false, openDoors: true, penalty: p => (tileAt(L, p)!.explored ? 0 : 1000) + hz(p) });
     let frontier: { pos: Vec2; cost: number } | undefined; let poi: { pos: Vec2; cost: number } | undefined;
     const consider = (r: { pos: Vec2; cost: number }) => {
-      const t = tileAt(L, r.pos)!; if (!t.explored) return;
+      const t = tileAt(L, r.pos)!; if (!t.explored || t.fire > 0 || t.kind === 'vent') return;
       if (t.prop && this.isInteractive(t.prop.kind, t.prop) && t.prop.kind !== 'stairs' && t.prop.kind !== 'door' && t.prop.kind !== 'barrel' && t.prop.kind !== 'brazier') { if (!poi || r.cost < poi.cost) poi = r; }
       if (t.prop?.kind === 'door' && !t.prop.open) { if (!poi || r.cost + 1 < poi.cost) poi = r; }
       let hasUnexplored = false; for (const d of DIRS8) { const n = tileAt(L, add(r.pos, d)); if (n && !n.explored && n.kind !== 'wall' && n.kind !== 'void') hasUnexplored = true; }

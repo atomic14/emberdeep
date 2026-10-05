@@ -22,6 +22,7 @@ export interface CombatState {
   log: string[];
   idleTurns?: number;
   disengaged?: boolean;
+  exploreSteps?: number;
 }
 
 let nextUnitId = 1;
@@ -424,6 +425,21 @@ function spawnSpots(l: Level, centre: Vec2, r: number): Vec2[] {
 
 // ---------------------------------------------------------------- exploration movement
 
+/** Fires burn down over time outside combat (no spreading, no damage: that happens on landing). */
+export function fireDecay(l: Level, ev: Ev) {
+  for (let y = 0; y < l.h; y++) for (let x = 0; x < l.w; x++) {
+    const t = l.tiles[y * l.w + x]; if (t.fire <= 0) continue;
+    t.fire--;
+    if (t.fire === 0) { ev.push({ t: 'fire', pos: { x, y }, on: false }); if (t.kind === 'oil') { t.kind = 'stone'; ev.push({ t: 'tile', pos: { x, y }, kind: 'stone' }); } }
+  }
+  for (let y = 0; y < l.h; y++) for (let x = 0; x < l.w; x++) { const t = l.tiles[y * l.w + x]; if (t.smoke > 0) { t.smoke--; if (t.smoke === 0) ev.push({ t: 'smoke', pos: { x, y }, on: false }); } }
+}
+
+/** Path penalty that keeps walkers out of fire and off heat vents, and reluctant about water, when there is any other way. */
+export function hazardPenalty(l: Level) {
+  return (p: Vec2) => { const t = tileAt(l, p)!; return (t.fire > 0 ? 1000 : 0) + (t.kind === 'vent' ? 60 : 0) + (t.kind === 'water' ? 1 : 0); };
+}
+
 /** Order of march: shields and breakers in front, the thief in the middle, ranged at the back. */
 export const MARCH_RANK: Record<string, number> = { knight: 0, barbarian: 1, rogue: 2, ranger: 3, mage: 4 };
 export function marchOrder(l: Level): Unit[] { return living(l, 'party').sort((a, b) => (MARCH_RANK[a.def.id] ?? 2) - (MARCH_RANK[b.def.id] ?? 2)); }
@@ -441,9 +457,11 @@ export function followStep(l: Level, leader: Unit, ev: Ev, vacated?: Vec2, extra
     for (let i = 0; i < steps; i++) {
       if (cheb(f.pos, leader.pos) <= 1) break;
       // first step: prefer the tile the unit ahead just left; later steps: any tile next to the leader
-      let path = (i === 0 && target && !unitAt(l, target)) ? findPath(l, f.pos, target, { unit: f, maxCost: 40 }) : null;
-      if (!path || !path.length) path = findPath(l, f.pos, leader.pos, { unit: f, adjacent: true, maxCost: 60 });
-      if (!path || !path.length) path = findPath(l, f.pos, leader.pos, { unit: f, adjacent: true, avoidUnits: false, maxCost: 80 });
+      const penalty = hazardPenalty(l);
+      let path = (i === 0 && target && !unitAt(l, target)) ? findPath(l, f.pos, target, { unit: f, maxCost: 1040, penalty }) : null;
+      if (!path || !path.length) path = findPath(l, f.pos, leader.pos, { unit: f, adjacent: true, maxCost: 1060, penalty });
+      if (!path || !path.length) path = findPath(l, f.pos, leader.pos, { unit: f, adjacent: true, avoidUnits: false, maxCost: 1080, penalty });
+      if (path && path.length && tileAt(l, path[0])!.fire > 0 && cheb(f.pos, leader.pos) <= 3) break; // better to lag a step than to walk into fire
       if (!path || !path.length) break;
       const step = path[0];
       if (unitAt(l, step)) break;
@@ -468,6 +486,8 @@ export function exploreStep(l: Level, cs: CombatState, leader: Unit, path: Vec2[
   if (blocker && blocker.faction === 'party') { blocker.pos = prevLeader; ev.push({ t: 'move', id: blocker.id, path: [prevLeader], kind: 'walk' }); }
   followStep(l, leader, ev, blocker ? undefined : prevLeader);
   for (const u of living(l, 'party')) landOn(l, u, ev);
+  cs.exploreSteps = (cs.exploreSteps ?? 0) + 1;
+  if (cs.exploreSteps % 3 === 0) fireDecay(l, ev);
   const room = roomAt(l, leader.pos); if (room && !room.entered) { room.entered = true; }
   refreshVisibility(l, cs);
   const seen = enemiesThatSee(l, cs);

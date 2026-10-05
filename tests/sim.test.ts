@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Level, Unit } from '../src/sim/types';
 import { makeTile, tileAt } from '../src/sim/grid';
-import { makeUnit, newCombatState, startCombat, moveUnit, undoMove, basicAttack, useAbility, endPlayerTurn, resetIds, moveRange, threatTiles, attackProp, attackableProps, exploreStep, followStep } from '../src/sim/combat';
+import { makeUnit, newCombatState, startCombat, moveUnit, undoMove, basicAttack, useAbility, endPlayerTurn, resetIds, moveRange, threatTiles, attackProp, attackableProps, exploreStep, followStep, hazardPenalty } from '../src/sim/combat';
 import { push, igniteTile, shock, damage } from '../src/sim/rules';
 import { PARTY_DEFS, ENEMY_DEFS } from '../src/content/units';
 import { findPath } from '../src/sim/pathfind';
@@ -127,6 +127,20 @@ describe('exploration', () => {
     for (let i = 0; i < 12; i++) { const ev: any[] = []; if (!followStep(l, a, ev)) break; }
     expect(a.pos).toEqual({ x: 17, y: 17 });
     expect(Math.max(...[b, c].map(u => Math.max(Math.abs(u.pos.x - a.pos.x), Math.abs(u.pos.y - a.pos.y))))).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('hazards while exploring', () => {
+  it('walkers route around fire when they can, and fires burn down as the party walks', () => {
+    const l = blank(16, 16); const cs = newCombatState(1);
+    tileAt(l, { x: 8, y: 8 })!.fire = 2; // a burning tile on the straight line
+    const a = makeUnit(PARTY_DEFS.knight, { x: 4, y: 8 }); const b = makeUnit(PARTY_DEFS.mage, { x: 3, y: 8 }); l.units.push(a, b);
+    const path = findPath(l, a.pos, { x: 12, y: 8 }, { unit: a, avoidUnits: false, penalty: hazardPenalty(l) })!;
+    expect(path.some(p => p.x === 8 && p.y === 8)).toBe(false);
+    const hpB = b.hp;
+    while (path.length) { const ev: any[] = []; const r = exploreStep(l, cs, a, path, ev); if (r.done) break; }
+    expect(b.hp).toBe(hpB);
+    expect(tileAt(l, { x: 8, y: 8 })!.fire).toBe(0); // eight steps later the fire has burnt out
   });
 });
 

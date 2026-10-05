@@ -202,8 +202,9 @@ export class Screens {
   }
   help(onClose: () => void) {
     const d = this.open();
+    const touch = matchMedia('(pointer: coarse)').matches;
     d.innerHTML = `<div class="card panel" style="width:min(680px,92vw)"><h2>How to play</h2>
-      <p>Left-click does the obvious thing. Hover first; the game shows you what will happen before you commit.</p>
+      <p>${touch ? 'Tap does the obvious thing. In a fight, the first tap on a tile shows what will happen; tap the same tile again to commit.' : 'Left-click does the obvious thing. Hover first; the game shows you what will happen before you commit.'}</p>
       <div class="keys">
         <b>THE JOB</b><span>Lead three Lamplighters (your <b>Lantern</b>) down the Deep. Each <b>Hour</b> is two floors and a <b>Keeper</b>. Find the stairs on every floor. At any stair you can <b>climb out</b> with the <b>ember</b> you carry, which buys upgrades at the Vigil, or go deeper for more. Fall, and the Vigil remembers you.</span>
         <b>EXPLORING</b><span>Click a tile to walk the Lantern there. It walks in the order of march: shield and breaker first, ranged last; click a portrait to lead with someone else until the next fight. Click a door, chest or glowing thing to use it. <i>Space</i> or the Explore button walks to everything unseen and stops when something matters.</span>
@@ -212,7 +213,7 @@ export class Screens {
         <b>RED TILES</b><span>Where enemies will strike at the start of their turn. They decide first and commit. Step out of red, or push them so they hit something else. Pushing an enemy moves its attack with it.</span>
         <b>UNDO</b><span>Movement can be undone (right-click, Z, or the undo link) until the Lamplighter acts.</span>
                 <b>THE ROOM</b><span>Water slows and conducts lightning. Oil burns and spreads. Chasms are final. Click a barrel to break it (oil) or a brazier to knock it over (fire), even before a fight starts. Doors shut. Pillars block sight and crumble. The thing in front of you is not the only thing in the room.</span>
-        <b>CAMERA</b><span>Wheel zooms. WASD or arrows pan. <i>F</i> toggles following. <i>Tab</i> cycles Lamplighters. <i>Esc</i> cancels, then opens the menu.</span>
+        ${touch ? '<b>TOUCH</b><span>Drag to look around; pinch to zoom. Tap a portrait to choose a Lamplighter. <b>Undo move</b> and <b>Cancel</b> appear above End Turn when there is something to take back. Camera following is in Settings.</span>' : '<b>CAMERA</b><span>Wheel zooms. WASD or arrows pan. <i>F</i> toggles following. <i>Tab</i> cycles Lamplighters. <i>Esc</i> cancels, then opens the menu.</span>'}
         <b>STAIRS</b><span>At every staircase you may go deeper or <b>Ascend</b> (climb out) with the ember you carry. Ascending ends the descent as a success: the ember is banked and everyone heals. Coming back is the hard rule.</span>
       </div>
       <div class="row-btns"><button class="primary" id="ok">Go down slow</button></div></div>`;

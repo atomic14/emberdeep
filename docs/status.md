@@ -18,6 +18,8 @@ A complete, playable loop in the browser (`npm run dev`):
 
 Left-click does the obvious thing. Hover previews. Right-click / Z undoes or cancels. Space is End Turn (combat) or Explore (exploration). 1–4 arm attack and abilities. Tab cycles Lamplighters. WASD/arrows pan, wheel zooms, F toggles camera follow, H help, Esc cancels then opens the menu.
 
+**Touch (phones and tablets):** tap does the obvious thing; in a fight the first tap on a tile previews (the docked panel at the top shows what a mouse would see on hover) and a second tap on the same tile commits. Self-cast abilities (Guard, Bulwark, Roar) also take two taps. Drag pans, pinch zooms. An Undo move / Cancel button above End Turn replaces right-click and Z. The HUD compacts below 1100px wide or 560px tall, and below 720px wide it stacks into two rows (portraits along the bottom, abilities and End Turn above). In portrait the camera holds the view's width steady so a phone held upright still sees the room. Touch devices render at a lower pixel ratio with a smaller shadow map.
+
 ## Known gaps and next steps
 
 - **Balance** is first-pass. The naive autoplayer dies in Hours II–III; a human reading intents should go further. Fever (meta difficulty) only rises on successful ascents past Hour I and on endings.

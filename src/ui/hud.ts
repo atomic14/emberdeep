@@ -3,11 +3,17 @@ import type { Unit, Phase } from '../sim/types';
 import { ABILITIES } from '../content/abilities';
 import { BOONS } from '../content/boons';
 
+/** No keyboard on a phone: keep the key hints off the buttons. */
+const KEYS = typeof matchMedia === 'undefined' || !matchMedia('(pointer: coarse)').matches;
+
 export class Tooltip {
   el: HTMLDivElement;
+  /** Touch: pin the tooltip to the top of the screen instead of under a finger. */
+  dock = false;
   constructor(root: HTMLElement) { this.el = document.createElement('div'); this.el.id = 'tooltip'; this.el.className = 'panel'; root.appendChild(this.el); }
   show(html: string, x: number, y: number) {
-    this.el.innerHTML = html; this.el.classList.add('show');
+    this.el.innerHTML = html; this.el.classList.add('show'); this.el.classList.toggle('docked', this.dock);
+    if (this.dock) { this.el.style.left = ''; this.el.style.top = ''; return; }
     const w = this.el.offsetWidth, h = this.el.offsetHeight;
     let left = x + 18, top = y + 18;
     if (left + w > window.innerWidth - 8) left = x - w - 14;
@@ -19,9 +25,9 @@ export class Tooltip {
 
 export class Hud {
   el: HTMLDivElement;
-  party: HTMLDivElement; hotbar: HTMLDivElement; endTurn: HTMLButtonElement; explore: HTMLButtonElement; bannerEl: HTMLDivElement; logEl: HTMLDivElement; floorEl: HTMLDivElement; resEl: HTMLDivElement;
+  party: HTMLDivElement; hotbar: HTMLDivElement; endTurn: HTMLButtonElement; undoBtn: HTMLButtonElement; explore: HTMLButtonElement; bannerEl: HTMLDivElement; logEl: HTMLDivElement; floorEl: HTMLDivElement; resEl: HTMLDivElement;
   tooltip: Tooltip;
-  onSelect?: (id: string) => void; onAbility?: (id: string) => void; onEndTurn?: () => void; onExplore?: () => void; onUndo?: (id: string) => void; onMenu?: () => void; onHelp?: () => void;
+  onSelect?: (id: string) => void; onAbility?: (id: string) => void; onEndTurn?: () => void; onExplore?: () => void; onUndo?: (id: string) => void; onCancel?: () => void; onMenu?: () => void; onHelp?: () => void;
   private bannerTimer?: number;
   private logTimer?: number;
 
@@ -38,23 +44,26 @@ export class Hud {
       </div>
       <div id="banner"></div>
       <div id="log"></div>
-      <div id="party"></div>
-      <div id="hotbar"></div>
+      <div id="dock"><div id="party"></div><div id="hotbar"></div></div>
       <button id="explore" title="Walk through everything unseen on this floor, stopping when something matters (Space)">Explore</button>
+      <button id="undo" class="touch-only hidden"></button>
       <div id="turntip" class="panel hidden"></div>
       <button id="endturn" class="primary" title="End your turn (Space)"><span class="label">End Turn</span><small></small></button>`;
     this.party = this.el.querySelector('#party')!; this.hotbar = this.el.querySelector('#hotbar')!;
-    this.endTurn = this.el.querySelector('#endturn')!; this.explore = this.el.querySelector('#explore')!;
+    this.endTurn = this.el.querySelector('#endturn')!; this.undoBtn = this.el.querySelector('#undo')!; this.explore = this.el.querySelector('#explore')!;
     this.bannerEl = this.el.querySelector('#banner')!; this.logEl = this.el.querySelector('#log')!; this.floorEl = this.el.querySelector('#floorname')!; this.resEl = this.el.querySelector('#resources')!;
     this.tooltip = new Tooltip(root);
-    this.endTurn.onclick = () => this.onEndTurn?.(); this.explore.onclick = () => this.onExplore?.();
+    this.endTurn.onclick = () => this.onEndTurn?.(); this.explore.onclick = () => this.onExplore?.(); this.undoBtn.onclick = () => this.onCancel?.();
     (this.el.querySelector('#menubtn') as HTMLButtonElement).onclick = () => this.onMenu?.();
     (this.el.querySelector('#helpbtn') as HTMLButtonElement).onclick = () => this.onHelp?.();
   }
   show(on: boolean) { this.el.style.display = on ? '' : 'none'; if (!on) this.tooltip.hide(); }
 
+  /** The on-screen stand-in for right-click / Z: hidden when there is nothing to cancel or undo. */
+  setUndo(label: string | undefined) { this.undoBtn.classList.toggle('hidden', !label); if (label) this.undoBtn.textContent = label; }
+
   setFloor(name: string, sub: string) { this.floorEl.innerHTML = `${name}<small>${sub}</small>`; }
-  setResources(ember: number, pages: number, run: number) { this.resEl.innerHTML = `<span title="Ember carried this descent. Climb out at any stair to bank it; it buys upgrades at the Vigil."><span class="ember">◆</span> ${ember} ember</span><span class="muted" title="Choir Pages found, kept between descents. Twelve in all.">${pages}/12 pages</span><span class="muted" title="How many times you have gone down.">Descent ${run}</span>`; }
+  setResources(ember: number, pages: number, run: number) { this.resEl.innerHTML = `<span title="Ember carried this descent. Climb out at any stair to bank it; it buys upgrades at the Vigil."><span class="ember">◆</span> ${ember} ember</span><span class="muted opt" title="Choir Pages found, kept between descents. Twelve in all.">${pages}/12 pages</span><span class="muted opt" title="How many times you have gone down.">Descent ${run}</span>`; }
 
   setPhase(phase: Phase, acted: number, total: number, showTip = false) {
     const combat = phase === 'player' || phase === 'enemy';
@@ -64,10 +73,10 @@ export class Hud {
     this.endTurn.classList.toggle('pulse', phase === 'player' && allActed);
     const label = this.endTurn.querySelector('.label') as HTMLElement, sub = this.endTurn.querySelector('small') as HTMLElement;
     label.textContent = phase === 'enemy' ? 'Their turn…' : 'End Turn';
-    sub.textContent = phase === 'enemy' ? 'the Deep moves' : allActed ? 'everyone has acted · Space' : `${acted} of ${total} acted · Space`;
+    sub.textContent = phase === 'enemy' ? 'the Deep moves' : (allActed ? 'everyone has acted' : `${acted} of ${total} acted`) + (KEYS ? ' · Space' : '');
     const tip = this.el.querySelector('#turntip') as HTMLElement;
     tip.classList.toggle('hidden', !(combat && phase === 'player' && allActed && showTip));
-    tip.textContent = 'Everyone has acted. Press End Turn (or Space) and the Deep takes its turn.';
+    tip.textContent = KEYS ? 'Everyone has acted. Press End Turn (or Space) and the Deep takes its turn.' : 'Everyone has acted. Tap End Turn and the Deep takes its turn.';
   }
 
   renderParty(units: Unit[], selectedId: string | undefined, canUndo: (u: Unit) => boolean, phase: Phase) {
@@ -83,11 +92,10 @@ export class Hud {
         <div class="stats"><span title="Armour: taken off every hit">⛨ <b>${arm}</b></span><span title="Attack damage">⚔ <b>${u.def.attack + (u.mods['attack'] ?? 0)}</b></span><span title="Movement left this turn (tiles)">👣 <b>${phase === 'player' ? u.moveLeft : u.move + (u.mods['move'] ?? 0)}</b></span></div>
         ${phase === 'player' && u.alive ? `<div class="acted">${u.acted ? 'DONE' : canUndo(u) ? '<u>undo move</u>' : ''}</div>` : ''}`;
       d.onclick = (ev) => { const t = ev.target as HTMLElement; if (t.tagName === 'U') { this.onUndo?.(u.id); return; } this.onSelect?.(u.id); };
-      d.onmouseenter = (ev) => this.tooltip.show(`<h4>${u.name}</h4><div class="muted">${u.def.title}</div><div class="row"><span>HP</span><b>${u.hp}/${u.maxHp}</b></div><div class="row"><span>Armour</span><b>${arm}</b></div><div class="row"><span>Attack</span><b>${u.def.attack + (u.mods['attack'] ?? 0)}${u.def.attackRange > 1 ? ` (range ${u.def.attackRange})` : ''}</b></div><div class="row"><span>Move</span><b>${u.move + (u.mods['move'] ?? 0)}</b></div>${u.boons.length ? `<div class="hint">Boons: ${u.boons.map(b => BOONS.find(x => x.id === b)?.name ?? b).join(', ')}</div>` : ''}`, ev.clientX, ev.clientY);
+      d.onpointerenter = (ev) => { if (ev.pointerType === 'mouse') this.tooltip.show(`<h4>${u.name}</h4><div class="muted">${u.def.title}</div><div class="row"><span>HP</span><b>${u.hp}/${u.maxHp}</b></div><div class="row"><span>Armour</span><b>${arm}</b></div><div class="row"><span>Attack</span><b>${u.def.attack + (u.mods['attack'] ?? 0)}${u.def.attackRange > 1 ? ` (range ${u.def.attackRange})` : ''}</b></div><div class="row"><span>Move</span><b>${u.move + (u.mods['move'] ?? 0)}</b></div>${u.boons.length ? `<div class="hint">Boons: ${u.boons.map(b => BOONS.find(x => x.id === b)?.name ?? b).join(', ')}</div>` : ''}`, ev.clientX, ev.clientY); };
       d.onmouseleave = () => this.tooltip.hide();
       this.party.appendChild(d);
     }
-    this.hotbar.style.left = (16 + this.party.offsetWidth + 26) + 'px';
   }
 
   renderHotbar(u: Unit | undefined, armed: string | undefined, phase: Phase) {

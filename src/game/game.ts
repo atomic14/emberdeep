@@ -52,6 +52,13 @@ export class Game {
   private autoEndTimer = 0;
   private wasCombat = false;
   private lastPointer = { x: 0, y: 0 };
+  // touch: tap once to preview, tap the same tile again to commit; drag pans, pinch zooms
+  private touchInput = false;
+  private touchPreview?: Vec2;
+  private touches = new Map<number, { x: number; y: number; sx: number; sy: number }>();
+  private dragging = false;
+  private pinching = false;
+  private pinchDist = 0;
 
   constructor(public view: View, public presenter: Presenter, public hud: Hud, public screens: Screens, public audio: AudioSys) {
     this.meta = loadMeta();
@@ -62,13 +69,15 @@ export class Game {
     presenter.onCombatStart = (r) => {
       this.hud.banner('They have seen your light', r, 2200); this.audio.playMusic(this.level?.meta.isKeeper ? 'combat2' : 'combat'); this.frameCombat();
       const n = (this.meta.flags['_fights'] as unknown as number) || 0; (this.meta.flags as any)['_fights'] = n + 1;
-      const hints = ['Each Lamplighter can move and then take one action, in any order. When everyone has acted, press End Turn (Space). Then the Deep moves.', 'Red tiles are where enemies will strike. Step out of them, or push the enemy so its attack lands elsewhere.', 'Hover an enemy to see what it will do and what your attack would do to it. Numbers never lie here.', 'Movement can be undone until you act. Right-click or Z.'];
+      const hints = this.touchInput
+        ? ['Each Lamplighter can move and then take one action, in any order. When everyone has acted, tap End Turn. Then the Deep moves.', 'Red tiles are where enemies will strike. Step out of them, or push the enemy so its attack lands elsewhere.', 'Tap an enemy to see what it will do and what your attack would do to it. Tap it again to commit. Numbers never lie here.', 'Movement can be undone until you act. Tap Undo.']
+        : ['Each Lamplighter can move and then take one action, in any order. When everyone has acted, press End Turn (Space). Then the Deep moves.', 'Red tiles are where enemies will strike. Step out of them, or push the enemy so its attack lands elsewhere.', 'Hover an enemy to see what it will do and what your attack would do to it. Numbers never lie here.', 'Movement can be undone until you act. Right-click or Z.'];
       if (n < hints.length) setTimeout(() => this.hud.log(hints[n], 'story'), 2400);
     };
     presenter.onCombatEnd = (won) => { if (won) { this.hud.banner('The room is quiet', '', 1600); this.audio.playMusic(this.musicFor()); setTimeout(() => this.wonFight(), 500); } };
     presenter.onIntentChange = () => this.refreshOverlays();
     presenter.isAware = id => !!this.cs?.aware.has(id);
-    hud.onSelect = id => this.select(id); hud.onAbility = id => this.arm(id); hud.onEndTurn = () => this.endTurn(); hud.onExplore = () => this.autoExplore(); hud.onUndo = id => this.undo(id);
+    hud.onSelect = id => this.select(id); hud.onAbility = id => this.arm(id); hud.onEndTurn = () => this.endTurn(); hud.onExplore = () => this.autoExplore(); hud.onUndo = id => this.undo(id); hud.onCancel = () => this.onCancel();
     hud.onMenu = () => this.openMenu(); hud.onHelp = () => this.screens.help(() => { });
   }
 
@@ -215,8 +224,18 @@ export class Game {
   // ------------------------------------------------------------------ input
   private bindInput() {
     const c = this.view.canvas;
-    c.addEventListener('pointermove', e => { this.lastPointer = { x: e.clientX, y: e.clientY }; this.onHover(e.clientX, e.clientY); });
-    c.addEventListener('pointerdown', e => { if (e.button === 0) this.onClick(e.clientX, e.clientY); else if (e.button === 2) this.onCancel(); });
+    // remember what kind of pointer is in use, before any handler (HUD buttons included) runs
+    window.addEventListener('pointerdown', e => { this.touchInput = e.pointerType !== 'mouse'; this.hud.tooltip.dock = this.touchInput; }, true);
+    c.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'mouse') { this.onTouchMove(e); return; }
+      this.lastPointer = { x: e.clientX, y: e.clientY }; this.onHover(e.clientX, e.clientY);
+    });
+    c.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'mouse') { this.onTouchDown(e); return; }
+      if (e.button === 0) this.onClick(e.clientX, e.clientY); else if (e.button === 2) this.onCancel();
+    });
+    c.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') this.onTouchUp(e); });
+    c.addEventListener('pointercancel', e => { this.touches.delete(e.pointerId); });
     c.addEventListener('contextmenu', e => e.preventDefault());
     c.addEventListener('wheel', e => { this.view.zoomBy(e.deltaY > 0 ? 1 : -1); }, { passive: true });
     window.addEventListener('keydown', e => {
@@ -234,6 +253,43 @@ export class Game {
     });
     window.addEventListener('keyup', e => this.keys.delete(e.key.toLowerCase()));
   }
+  private onTouchDown(e: PointerEvent) {
+    try { this.view.canvas.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
+    this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
+    if (this.touches.size === 1) { this.dragging = false; this.pinching = false; }
+    else if (this.touches.size === 2) { this.pinching = true; this.pinchDist = this.touchSpread(); }
+  }
+  private onTouchMove(e: PointerEvent) {
+    const p = this.touches.get(e.pointerId); if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    if (this.touches.size >= 2) { // pinch: the zoom levels are coarse, so step once per clear spread
+      const d = this.touchSpread();
+      if (d > this.pinchDist * 1.35) { this.view.zoomBy(-1); this.pinchDist = d; } else if (d < this.pinchDist / 1.35) { this.view.zoomBy(1); this.pinchDist = d; }
+      return;
+    }
+    if (this.pinching) return;
+    if (!this.dragging && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 10) this.dragging = true;
+    if (this.dragging && this.mode === 'run') { this.view.follow = false; this.view.dragPixels(dx, dy); }
+  }
+  private onTouchUp(e: PointerEvent) {
+    if (!this.touches.delete(e.pointerId)) return;
+    if (!this.dragging && !this.pinching && this.touches.size === 0) this.onTap(e.clientX, e.clientY);
+  }
+  private touchSpread() { const [a, b] = [...this.touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); }
+  /** A touch tap. In a fight the first tap on a tile previews (what a mouse shows on hover); a second tap on it commits. */
+  private onTap(cx: number, cy: number) {
+    this.lastPointer = { x: cx, y: cy };
+    const L = this.level, cs = this.cs; if (this.mode !== 'run' || !L || !cs || this.screens.isOpen) return;
+    const cell = this.cellAt(cx, cy);
+    if (cell && cs.phase === 'player' && !this.presenter.busy) {
+      const hu = unitAt(L, cell), u = this.selected();
+      const selecting = hu?.faction === 'party' && !(u && this.armed && this.armed !== 'attack' && abilityTargets(L, u, this.armed).some(p => eq(p, cell)));
+      if (!selecting && !(this.touchPreview && eq(this.touchPreview, cell))) { this.touchPreview = cell; this.onHover(cx, cy); return; }
+    }
+    this.touchPreview = undefined; this.hud.tooltip.hide();
+    this.onClick(cx, cy);
+  }
+
   update(dt: number) {
     if (this.mode !== 'run') { if (this.presenter.level) this.view.panBy(dt * 0.9, dt * 0.5); return; }
     const sp = 40 * dt * (this.view.zoomIndex + 1);
@@ -289,9 +345,18 @@ export class Game {
     if (id !== 'attack' && id !== 'shadowstep' && u.acted) { this.hud.log(`${u.name.split(' ')[0]} has already acted.`, 'warn'); return; }
     if (id === 'attack' && u.acted) return;
     if (id !== 'attack' && (u.cooldowns[id] ?? 0) > 0) { this.hud.log(`${ABILITIES[id].name} is not ready.`, 'warn'); return; }
-    if (ABILITIES[id]?.shape === 'self') { this.doAbility(u, id, u.pos); return; }
+    const ab = ABILITIES[id];
+    if (ab?.shape === 'self') {
+      // touch has no hover to explain a self-cast first: the first tap describes it, the second uses it
+      if (this.touchInput && this.armed !== id) { this.armed = id; this.refreshHud(); this.refreshOverlays(); this.hud.tooltip.show(`<h4>${ab.name}</h4><div>${ab.desc}</div><div class="hint">Tap ${ab.name} again to use it.</div>`, 0, 0); return; }
+      this.armed = undefined; this.doAbility(u, id, u.pos); return;
+    }
     this.armed = this.armed === id ? undefined : id; this.audio.sfx('ui_select', 1, 0.3);
     this.refreshHud(); this.refreshOverlays();
+    if (this.touchInput && this.armed) {
+      const desc = id === 'attack' ? 'Tap an enemy in reach to see the result, then tap it again to strike.' : `${ab.desc}`;
+      this.hud.tooltip.show(`<h4>${id === 'attack' ? 'Attack' : ab.name}</h4><div>${desc}</div><div class="hint">${id === 'attack' ? '' : 'Tap a highlighted tile to preview, then tap it again to confirm. '}Cancel with the button on the right.</div>`, 0, 0);
+    }
   }
   onCancel() {
     this.exploring = false;
@@ -355,6 +420,7 @@ export class Game {
         }
       }
     }
+    if (html && this.touchInput) html = html.replace(/Click to select\./g, 'Tap to select.').replace(/Click to /g, 'Tap again to ').replace(/Undo with right-click or Z until you act\./g, 'Undo with the Undo button until you act.').replace(/Right-click to cancel\./g, 'Cancel with the button on the right.');
     if (html) this.hud.tooltip.show(html, cx, cy); else this.hud.tooltip.hide();
   }
   private tileNote(k: string) { return k === 'water' ? '<div class="muted">Water: costs 2 to enter; conducts lightning.</div>' : k === 'oil' ? '<div class="muted">Oil: burns and spreads.</div>' : k === 'ice' ? '<div class="muted">Ice: pushes slide one further.</div>' : k === 'vent' ? '<div class="muted">Heat vent: erupts on a count.</div>' : ''; }
@@ -686,7 +752,7 @@ export class Game {
     if (cs.phase === 'explore') { this.armed = undefined; if (this.wasCombat) { const front = marchOrder(L)[0]; if (front) this.leaderId = front.id; this.wasCombat = false; } const lead = this.leader(); if (lead) this.leaderId = lead.id, this.selectedId = lead.id; }
     if (cs.phase === 'player' || cs.phase === 'enemy') this.wasCombat = true;
     this.refreshHud(); this.refreshOverlays();
-    this.onHover(this.lastPointer.x, this.lastPointer.y);
+    if (this.touchInput) { this.touchPreview = undefined; this.hud.tooltip.hide(); } else this.onHover(this.lastPointer.x, this.lastPointer.y);
     if (cs.phase === 'lost') { this.lanternOut(); return; }
     this.snapshot();
     if (cs.phase === 'explore' && (cs as any)._wonPending) { (cs as any)._wonPending = false; }
@@ -825,6 +891,8 @@ export class Game {
     this.hud.setPhase(cs.phase, acted, alive.length, ((this.meta.flags as any)['_fights'] ?? 0) <= 3);
     if (this.meta.settings.autoEndTurn && cs.phase === 'player' && alive.length && acted >= alive.length && !this.armed && !this.presenter.busy && !this.screens.isOpen) { clearTimeout(this.autoEndTimer); this.autoEndTimer = window.setTimeout(() => { if (this.cs?.phase === 'player' && living(this.level!, 'party').every(u => u.acted)) this.endTurn(); }, 900); }
     this.hud.setResources(this.run?.ember ?? 0, this.meta.pagesFound.length, this.meta.runs);
+    const sel = this.selected();
+    this.hud.setUndo(cs.phase !== 'player' ? undefined : this.armed ? 'Cancel' : sel && canUndo(sel) ? 'Undo move' : undefined);
     for (const a of this.presenter.actors.values()) a.setSelected(a.unit.id === this.selectedId && a.unit.alive && cs.phase === 'player');
   }
   refreshOverlays() {

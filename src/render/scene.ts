@@ -18,6 +18,8 @@ const VignetteShader = {
 };
 
 export const ZOOMS = [11, 15, 21]; // half-height of view in world units
+/** Phones and tablets: a lighter render budget. */
+const COARSE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 
 /** Renderer, isometric orthographic camera, lights and post-processing. */
 export class View {
@@ -31,6 +33,7 @@ export class View {
   private desired = new THREE.Vector3(0, 0, 0);
   zoomIndex = 1;
   private zoomHalf = ZOOMS[1];
+  private halfH = ZOOMS[1];
   yaw = Math.PI / 4;
   pitch = THREE.MathUtils.degToRad(42);
   dist = 120;
@@ -44,7 +47,7 @@ export class View {
 
   constructor(public canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, COARSE ? 1.5 : 1.75));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -55,7 +58,7 @@ export class View {
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
     this.hemi = new THREE.HemisphereLight(0x5a6a8a, 0x1a0f0a, 0.9); this.scene.add(this.hemi);
     this.key = new THREE.DirectionalLight(0xaab8d8, 1.6);
-    this.key.castShadow = true; this.key.shadow.mapSize.set(2048, 2048);
+    this.key.castShadow = true; this.key.shadow.mapSize.set(COARSE ? 1024 : 2048, COARSE ? 1024 : 2048);
     this.key.shadow.camera.near = 1; this.key.shadow.camera.far = 300; this.key.shadow.normalBias = 0.04; this.key.shadow.bias = -0.0005;
     const sc = this.key.shadow.camera; sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70;
     this.scene.add(this.key); this.scene.add(this.key.target);
@@ -73,7 +76,8 @@ export class View {
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
     this.renderer.setSize(w, h, false); this.composer.setSize(w, h);
-    const aspect = w / h; const hh = this.zoomHalf;
+    // on a tall, narrow screen hold the width steady instead, so a phone held upright still sees the room
+    const aspect = w / h; const hh = this.zoomHalf * Math.max(1, 0.8 / aspect); this.halfH = hh;
     this.camera.left = -hh * aspect; this.camera.right = hh * aspect; this.camera.top = hh; this.camera.bottom = -hh;
     this.camera.updateProjectionMatrix();
   }
@@ -89,10 +93,16 @@ export class View {
   lookAtGrid(x: number, y: number, immediate = false) { this.lookAtWorld(View.gridToWorld(x, y), immediate); }
   panBy(dx: number, dz: number) { this.desired.x += dx; this.desired.z += dz; }
   /** Pan in screen space: right = +screenX, up = +screenY (world units). */
-  panScreen(sx: number, sy: number) {
+  panScreen(sx: number, sy: number, immediate = false) {
     const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     const up = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     this.desired.addScaledVector(right, sx).addScaledVector(up, sy);
+    if (immediate) this.target.addScaledVector(right, sx).addScaledVector(up, sy);
+  }
+  /** Drag the ground with a finger: the point under it stays under it. Pixel deltas. */
+  dragPixels(dx: number, dy: number) {
+    const upp = 2 * this.halfH / window.innerHeight; // world units per screen pixel
+    this.panScreen(-dx * upp, dy * upp / Math.sin(this.pitch), true);
   }
 
   screenToGround(clientX: number, clientY: number): THREE.Vector3 | null {

@@ -31,7 +31,7 @@ export class AudioSys {
     const now = performance.now(); if ((this.lastPlay.get(name) ?? 0) > now - 40) return; this.lastPlay.set(name, now);
     const idx = variants > 1 ? Math.floor(Math.random() * variants) : -1;
     const base = idx >= 0 ? name + idx : name;
-    const exts = ext ? [ext] : ['ogg', 'wav'];
+    const exts = ext ? [ext] : ['ogg', 'mp3', 'wav'];
     let buf: AudioBuffer | undefined;
     for (const e of exts) { buf = await this.load(`/audio/sfx/${base}.${e}`); if (buf) break; }
     if (!buf) return;
